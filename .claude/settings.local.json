@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(/Users/amalakhov/jira-dashboard/.awos/scripts/create-spec-directory.sh:*)",
+      "Skill(awos:tasks)",
+      "Bash(npx create-next-app:*)",
+      "Bash(tree:*)",
+      "Bash(npx create-next-app@latest frontend --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker compose:*)",
+      "Bash(pkill:*)",
+      "Bash(alembic init:*)",
+      "Bash(npm run lint)",
+      "Bash(python3:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(alembic revision:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python:*)",
+      "Bash(cat:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git rm:*)"
+    ]
+  }
+}
