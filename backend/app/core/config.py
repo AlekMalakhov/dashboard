@@ -29,10 +29,18 @@ class Settings(BaseSettings):
         description="Redis cache URL",
     )
 
-    # Nango Integration
-    nango_secret_key: str = Field(
+    # Jira API
+    jira_site_url: str = Field(
         default="",
-        description="Nango secret key for API authentication",
+        description="Jira Cloud site URL (e.g., https://yoursite.atlassian.net)",
+    )
+    jira_user_email: str = Field(
+        default="",
+        description="Jira user email for API authentication",
+    )
+    jira_api_token: str = Field(
+        default="",
+        description="Jira API token for authentication",
     )
 
     # CORS

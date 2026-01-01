@@ -69,7 +69,7 @@ async function mockReworkMetricsAPI(
   page: Page,
   boardId: number = 1,
   days: number = 30,
-  metrics = MOCK_METRICS
+  metrics: typeof MOCK_METRICS | typeof MOCK_METRICS_WITH_MISSING_DATA = MOCK_METRICS
 ) {
   await page.route(
     `**/api/rework?board_id=${boardId}&days=${days}`,

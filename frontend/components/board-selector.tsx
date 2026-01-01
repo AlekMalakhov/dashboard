@@ -103,6 +103,7 @@ export default function BoardSelector({
               : 'Search boards...'
           }
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+          role="combobox"
           aria-expanded={isOpen}
           aria-controls="board-dropdown"
           aria-autocomplete="list"
