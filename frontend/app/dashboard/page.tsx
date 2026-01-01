@@ -6,10 +6,16 @@ import {
   getSession,
   getBoards,
   logout,
+  getReworkMetrics,
   SessionExpiredError,
   type Board,
+  type ReworkMetrics,
 } from '@/lib/api';
 import BoardSelector from '@/components/board-selector';
+import TimeRangeSelector from '@/components/time-range-selector';
+import ReworkRatioCard from '@/components/rework-ratio-card';
+import ContextWidgetsGrid from '@/components/context-widgets-grid';
+import MissingDataWarning from '@/components/missing-data-warning';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -18,6 +24,10 @@ export default function Dashboard() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
   const [isFetchingBoards, setIsFetchingBoards] = useState(false);
+  const [timeRange, setTimeRange] = useState<30 | 60 | 90>(30);
+  const [metrics, setMetrics] = useState<ReworkMetrics | null>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -80,6 +90,40 @@ export default function Dashboard() {
   const handleBoardSelect = (board: Board) => {
     setSelectedBoard(board);
   };
+
+  // Handle time range change
+  const handleTimeRangeChange = (range: 30 | 60 | 90) => {
+    setTimeRange(range);
+  };
+
+  // Fetch metrics when board or time range changes
+  useEffect(() => {
+    if (!selectedBoard) {
+      setMetrics(null);
+      setMetricsError(null);
+      return;
+    }
+
+    const fetchMetrics = async () => {
+      setIsLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const data = await getReworkMetrics(selectedBoard.id, timeRange);
+        setMetrics(data);
+      } catch (error) {
+        if (error instanceof SessionExpiredError) {
+          router.push('/');
+          return;
+        }
+        setMetricsError('Failed to load rework metrics');
+        console.error('Error fetching metrics:', error);
+      } finally {
+        setIsLoadingMetrics(false);
+      }
+    };
+
+    fetchMetrics();
+  }, [selectedBoard, timeRange, router]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -159,19 +203,46 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Display selected board */}
+        {/* Rework Dashboard - Only visible when board is selected */}
         {selectedBoard && (
-          <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              Selected Board
-            </h2>
-            <p className="text-lg text-gray-700">
-              <span className="font-medium">Board ID:</span> {selectedBoard.id}
-            </p>
-            <p className="text-lg text-gray-700">
-              <span className="font-medium">Board Name:</span>{' '}
-              {selectedBoard.name}
-            </p>
+          <div className="mt-8 space-y-6">
+            {/* Time Range Selector */}
+            <div className="flex justify-end">
+              <TimeRangeSelector
+                selectedRange={timeRange}
+                onRangeChange={handleTimeRangeChange}
+              />
+            </div>
+
+            {/* Error message */}
+            {metricsError && (
+              <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-700">{metricsError}</p>
+              </div>
+            )}
+
+            {/* Warning message for missing data */}
+            {metrics && metrics.items_excluded > 0 && !isLoadingMetrics && (
+              <MissingDataWarning
+                excludedCount={metrics.items_excluded}
+                message={metrics.warning ?? undefined}
+              />
+            )}
+
+            {/* Main Rework Ratio Card */}
+            <ReworkRatioCard
+              ratio={metrics?.rework_ratio ?? 0}
+              isLoading={isLoadingMetrics}
+            />
+
+            {/* Context Metrics Grid */}
+            <ContextWidgetsGrid
+              storiesAnalyzed={metrics?.stories_analyzed ?? 0}
+              bugsLinked={metrics?.bugs_linked ?? 0}
+              deliveredPoints={metrics?.story_points_delivered ?? 0}
+              reworkPoints={metrics?.rework_points ?? 0}
+              isLoading={isLoadingMetrics}
+            />
           </div>
         )}
 

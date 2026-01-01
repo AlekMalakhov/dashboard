@@ -12,6 +12,7 @@ from app.api import health
 from app.auth import routes as auth_routes
 from app.boards import routes as boards_routes
 from app.core.config import settings
+from app.rework import routes as rework_routes
 
 
 def configure_logging() -> None:
@@ -60,6 +61,7 @@ def create_application() -> FastAPI:
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(auth_routes.router, prefix="/api", tags=["auth"])
     app.include_router(boards_routes.router, prefix="/api", tags=["boards"])
+    app.include_router(rework_routes.router, prefix="/api", tags=["rework"])
 
     return app
 
