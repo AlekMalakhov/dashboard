@@ -39,10 +39,18 @@ class JiraSearchResponse(BaseModel):
     total: int = Field(default=0, description="Total number of results")
 
 
+class IssueDetail(BaseModel):
+    """Detail of a single issue for drill-down."""
+
+    key: str = Field(..., description="Issue key (e.g., PROJ-123)")
+    summary: str = Field(..., description="Issue summary/title")
+    story_points: Optional[float] = Field(None, description="Story points")
+
+
 class ReworkMetricsResponse(BaseModel):
     """Response model for rework metrics."""
 
-    rework_ratio: int = Field(
+    rework_ratio: float = Field(
         ...,
         description="Rework ratio percentage (bugs / stories * 100)",
         ge=0,
@@ -57,12 +65,12 @@ class ReworkMetricsResponse(BaseModel):
         description="Number of bugs linked to analyzed stories",
         ge=0,
     )
-    story_points_delivered: int = Field(
+    story_points_delivered: float = Field(
         ...,
         description="Total story points delivered in the time period",
         ge=0,
     )
-    rework_points: int = Field(
+    rework_points: float = Field(
         ...,
         description="Story points associated with rework bugs",
         ge=0,
@@ -75,4 +83,13 @@ class ReworkMetricsResponse(BaseModel):
     warning: Optional[str] = Field(
         None,
         description="Warning message if data quality issues detected",
+    )
+    # Detailed lists for drill-down
+    bugs: list[IssueDetail] = Field(
+        default_factory=list,
+        description="List of bugs included in the calculation",
+    )
+    stories: list[IssueDetail] = Field(
+        default_factory=list,
+        description="List of stories included in the calculation",
     )

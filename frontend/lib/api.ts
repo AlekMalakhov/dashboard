@@ -21,16 +21,27 @@ export interface BoardsResponse {
 }
 
 /**
+ * Issue detail for drill-down
+ */
+export interface IssueDetail {
+  key: string;
+  summary: string;
+  story_points: number | null; // Can be decimal (e.g., 2.5)
+}
+
+/**
  * Rework metrics response from backend
  */
 export interface ReworkMetrics {
-  rework_ratio: number;
+  rework_ratio: number; // Percentage with 1 decimal (e.g., 35.3)
   stories_analyzed: number;
   bugs_linked: number;
-  story_points_delivered: number;
-  rework_points: number;
+  story_points_delivered: number; // Can be decimal
+  rework_points: number; // Can be decimal
   items_excluded: number;
   warning: string | null;
+  bugs: IssueDetail[];
+  stories: IssueDetail[];
 }
 
 /**
@@ -55,16 +66,21 @@ export async function getBoards(): Promise<BoardsResponse> {
 }
 
 /**
+ * Valid time range options in days
+ */
+export type TimeRange = 30 | 60 | 84 | 90;
+
+/**
  * Fetches rework metrics for a specific board and time range
  *
  * @param boardId - The ID of the board to fetch metrics for
- * @param days - The time range in days (30, 60, or 90)
+ * @param days - The time range in days (30, 60, 84, or 90)
  * @returns Promise<ReworkMetrics> The rework metrics
  * @throws Error if the request fails
  */
 export async function getReworkMetrics(
   boardId: number,
-  days: 30 | 60 | 90
+  days: TimeRange
 ): Promise<ReworkMetrics> {
   const response = await fetch(
     `${API_BASE_URL}/api/rework?board_id=${boardId}&days=${days}`,

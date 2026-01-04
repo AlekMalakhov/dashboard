@@ -28,15 +28,28 @@ class BoardsService:
         try:
             logger.info("Fetching boards from Jira...")
 
-            data = await self.jira.get("/rest/agile/1.0/board")
+            # Fetch all pages of boards
+            boards_data: list[dict] = []
+            start_at = 0
+            max_results = 50
 
-            # Parse Jira API response
-            boards_data = data.get("values", [])
+            while True:
+                data = await self.jira.get(
+                    "/rest/agile/1.0/board",
+                    params={"startAt": start_at, "maxResults": max_results},
+                )
+                boards_data.extend(data.get("values", []))
+
+                # Check if this is the last page
+                if data.get("isLast", True):
+                    break
+
+                start_at += max_results
 
             boards = [
                 BoardResponse(
                     id=board["id"],
-                    name=board["name"],
+                    name=board.get("location", {}).get("projectName") or board["name"],
                 )
                 for board in boards_data
                 if "id" in board and "name" in board

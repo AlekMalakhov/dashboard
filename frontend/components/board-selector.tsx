@@ -77,7 +77,7 @@ export default function BoardSelector({
     <div className="w-full max-w-md" ref={dropdownRef}>
       <label
         htmlFor="board-search"
-        className="block text-sm font-medium text-gray-700 mb-2"
+        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
       >
         Select a Board
       </label>
@@ -102,7 +102,7 @@ export default function BoardSelector({
               ? 'No boards available'
               : 'Search boards...'
           }
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           role="combobox"
           aria-expanded={isOpen}
           aria-controls="board-dropdown"
@@ -135,12 +135,12 @@ export default function BoardSelector({
       {isOpen && (
         <div
           id="board-dropdown"
-          className="absolute z-10 w-full max-w-md mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto"
+          className="absolute z-10 w-full max-w-md mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto"
           role="listbox"
           aria-label="Board options"
         >
           {filteredBoards.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
               {boards.length === 0
                 ? 'No boards available'
                 : 'No matching boards'}
@@ -152,10 +152,10 @@ export default function BoardSelector({
                   <button
                     type="button"
                     onClick={() => handleBoardSelect(board)}
-                    className={`w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none transition-colors ${
+                    className={`w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-50 dark:focus:bg-blue-900/30 focus:outline-none transition-colors ${
                       selectedBoard?.id === board.id
-                        ? 'bg-blue-100 text-blue-900 font-medium'
-                        : 'text-gray-900'
+                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100 font-medium'
+                        : 'text-gray-900 dark:text-gray-100'
                     }`}
                     role="option"
                     aria-selected={selectedBoard?.id === board.id}

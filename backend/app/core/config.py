@@ -1,6 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
-from pydantic import Field, PostgresDsn, RedisDsn
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,18 +16,6 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "Jira Dashboard API"
     debug: bool = False
-
-    # Database
-    database_url: PostgresDsn = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/jira_dashboard",
-        description="PostgreSQL database URL with asyncpg driver",
-    )
-
-    # Redis
-    redis_url: RedisDsn = Field(
-        default="redis://localhost:6379/0",
-        description="Redis cache URL",
-    )
 
     # Jira API
     jira_site_url: str = Field(
