@@ -1,20 +1,22 @@
 # Technical Specification: Jira Cloud Connection
 
 - **Functional Specification:** `context/spec/001-jira-cloud-connection/functional-spec.md`
-- **Status:** Approved
+- **Status:** Approved (Updated - Nango integration removed)
 - **Author(s):** Poe
 
 ---
 
 ## 1. High-Level Technical Approach
 
-This feature implements secure Jira Cloud authentication using Nango as the OAuth provider, with a FastAPI backend and Next.js frontend. Nango handles the entire OAuth 2.0 (3LO) flow, token storage, and automatic refresh — our backend simply retrieves tokens via Nango SDK when making Jira API calls.
+This feature implements secure Jira Cloud authentication using direct Jira Cloud REST API integration with a FastAPI backend and Next.js frontend. The backend handles API token authentication and makes direct calls to the Jira Cloud REST API.
 
 **Systems affected:**
-- Frontend: New landing page, auth flow, board selector
-- Backend: New auth and boards endpoints
-- Database: New users table
-- External: Nango (OAuth), Jira Cloud API
+- Frontend: Landing page, auth flow, board selector
+- Backend: Auth and boards endpoints
+- Database: Users table
+- External: Jira Cloud REST API
+
+> **Note:** The original implementation used Nango as an OAuth provider. This approach was abandoned in favor of direct Jira API integration using API tokens.
 
 ---
 
@@ -24,35 +26,30 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Next.js       │────▶│   FastAPI       │────▶│   Nango         │
-│   Frontend      │     │   Backend       │     │   (OAuth)       │
+│   Next.js       │────▶│   FastAPI       │────▶│   Jira Cloud    │
+│   Frontend      │     │   Backend       │     │   REST API      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-                               │                        │
-                               ▼                        ▼
-                        ┌─────────────────┐     ┌─────────────────┐
-                        │   PostgreSQL    │     │   Jira Cloud    │
-                        │   (sessions)    │     │   REST API      │
-                        └─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │   PostgreSQL    │
+                        │   (sessions)    │
+                        └─────────────────┘
 ```
 
-### 2.2 OAuth Flow with Nango
+### 2.2 Authentication Flow
 
-1. User clicks "Connect to Jira" on landing page
-2. Frontend uses Nango frontend SDK to open OAuth popup
-3. User authorizes in Atlassian consent screen
-4. Nango receives callback, stores tokens, returns connection ID
-5. Frontend sends connection ID to backend `/api/auth/callback`
-6. Backend creates user record and session
-7. User is redirected to dashboard (board selection)
+1. Backend uses configured Jira API credentials (base URL, email, API token)
+2. API calls are made directly to Jira Cloud REST API
+3. User sessions are managed via HTTP-only cookies
 
 ### 2.3 Data Model / Database Changes
 
-**New table: `users`**
+**Table: `users`**
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID | Primary key |
-| `nango_connection_id` | TEXT (unique) | Reference to Nango connection |
 | `atlassian_account_id` | TEXT | Jira user identifier |
 | `created_at` | TIMESTAMP | Record creation time |
 | `updated_at` | TIMESTAMP | Last update time |
@@ -64,7 +61,7 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 - Response: `{ "authenticated": boolean, "user": { "id": string } | null }`
 
 **POST `/api/auth/callback`**
-- Receives Nango connection ID after OAuth
+- Handles authentication callback
 - Request: `{ "connection_id": string }`
 - Response: `{ "success": boolean, "user": { "id": string } }`
 - Creates session cookie (HTTP-only)
@@ -74,7 +71,7 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 - Response: `{ "success": boolean }`
 
 **GET `/api/boards`**
-- Fetches boards from Jira via Nango
+- Fetches boards from Jira
 - Response: `{ "boards": [{ "id": number, "name": string }] }`
 - Requires authenticated session
 
@@ -85,20 +82,19 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 | Component | Purpose |
 |-----------|---------|
 | `app/auth/routes.py` | Auth endpoints (session, callback, logout) |
-| `app/auth/service.py` | Session management, Nango SDK integration |
+| `app/auth/service.py` | Session management |
 | `app/boards/routes.py` | `/api/boards` endpoint |
-| `app/boards/service.py` | Fetches boards from Jira API via Nango |
+| `app/boards/service.py` | Fetches boards from Jira API |
 | `app/db/models.py` | SQLAlchemy User model |
-| `app/core/config.py` | Nango API keys, app settings |
+| `app/core/config.py` | Jira API credentials, app settings |
 
 **Frontend (Next.js):**
 
 | Component | Purpose |
 |-----------|---------|
 | `app/page.tsx` | Landing page with "Connect to Jira" button |
-| `app/dashboard/page.tsx` | Board selection + dashboard placeholder |
+| `app/dashboard/page.tsx` | Board selection + dashboard |
 | `components/BoardSelector.tsx` | Searchable dropdown for boards |
-| `lib/nango.ts` | Nango frontend SDK wrapper |
 | `lib/api.ts` | API client for backend calls |
 
 ---
@@ -107,7 +103,6 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 
 ### 3.1 System Dependencies
 
-- **Nango:** OAuth flow depends entirely on Nango service availability
 - **Jira Cloud API:** Board fetching requires Jira API access
 - **PostgreSQL:** Session/user storage
 - **Redis:** Optional caching for board lists (future optimization)
@@ -116,10 +111,9 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Nango service outage | Users cannot authenticate | No mitigation for v1; consider fallback OAuth in future |
 | Jira API rate limits | Board fetching may fail | Implement retry logic with exponential backoff |
-| Token expiry mid-session | API calls fail | Nango auto-refreshes; backend catches 401 and redirects to login |
-| Network errors during OAuth | User stuck in flow | Clear error messages, retry button on landing page |
+| Token expiry | API calls fail | Clear error messages, redirect to re-authenticate |
+| Network errors | User stuck in flow | Clear error messages, retry button |
 
 ---
 
@@ -132,13 +126,12 @@ This feature implements secure Jira Cloud authentication using Nango as the OAut
 
 ### 4.2 Integration Tests
 
-- OAuth callback flow (mock Nango responses)
+- Auth callback flow (mock Jira responses)
 - Boards endpoint with mocked Jira API responses
 - Session persistence across requests
 
 ### 4.3 End-to-End Tests
 
-- Full OAuth flow with Nango sandbox
 - Board selection and navigation to dashboard
 - Logout and session clearing
-- Error scenarios (OAuth denied, no boards)
+- Error scenarios (no boards)

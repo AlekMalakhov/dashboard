@@ -8,12 +8,12 @@
 
 ## 1. High-Level Technical Approach
 
-This feature adds a rework ratio dashboard to the existing application. The backend fetches bug and story data from Jira via Nango proxy, calculates the rework ratio, and caches results in Redis. The frontend extends the dashboard page with a time range selector, main metric card, and context widgets.
+This feature adds a rework ratio dashboard to the existing application. The backend fetches bug and story data from Jira Cloud REST API, calculates the rework ratio, and caches results in Redis. The frontend extends the dashboard page with a time range selector, main metric card, and context widgets.
 
 **Systems affected:**
 - Backend: New `rework` module with service, routes, schemas, cache
 - Frontend: Extended dashboard page, new reusable components
-- External: Jira Cloud REST API v3 (via Nango proxy), Redis cache
+- External: Jira Cloud REST API v3, Redis cache
 
 ---
 
@@ -28,10 +28,10 @@ This feature adds a rework ratio dashboard to the existing application. The back
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                │
                                ▼
-                        ┌─────────────────┐     ┌─────────────────┐
-                        │   Nango Proxy   │────▶│   Jira Cloud    │
-                        │                 │     │   REST API v3   │
-                        └─────────────────┘     └─────────────────┘
+                        ┌─────────────────┐
+                        │   Jira Cloud    │
+                        │   REST API v3   │
+                        └─────────────────┘
 ```
 
 ### 2.2 Rework Calculation Logic
@@ -78,7 +78,7 @@ This feature adds a rework ratio dashboard to the existing application. The back
 
 **No new tables required.**
 
-Rework metrics are calculated on-demand and cached in Redis. The existing `users` table provides `nango_connection_id` for Jira API authentication.
+Rework metrics are calculated on-demand and cached in Redis. The existing `users` table provides user authentication context for Jira API calls.
 
 ### 2.5 Caching Strategy
 
@@ -123,7 +123,6 @@ Rework metrics are calculated on-demand and cached in Redis. The existing `users
 
 ### 3.1 System Dependencies
 
-- **Nango:** All Jira API calls require Nango proxy
 - **Jira Cloud API:** Bug/story data, issue links
 - **Redis:** Caching layer (graceful degradation if unavailable)
 - **PostgreSQL:** User session validation only

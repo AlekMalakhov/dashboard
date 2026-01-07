@@ -1,5 +1,7 @@
 # Tasks: Jira Cloud Connection
 
+> **Note:** This feature was originally planned to use Nango for OAuth. The implementation was updated to use direct Jira API integration instead.
+
 ## Slice 1: Project Scaffolding
 
 Set up the basic project structure so both frontend and backend are runnable.
@@ -24,19 +26,16 @@ User can see the landing page with a non-functional button.
 
 ---
 
-## Slice 3: OAuth Flow with Nango
+## Slice 3: Authentication Flow
 
-User can authenticate with Jira via Nango and return to the app.
+User can authenticate and access the application.
 
-- [x] **Slice 3: Working OAuth authentication flow**
-  - [x] Set up Nango account and configure Jira integration
-  - [x] Add Nango frontend SDK to Next.js
-  - [x] Create `lib/nango.ts` wrapper to trigger OAuth popup
-  - [x] Wire "Connect to Jira" button to open Nango OAuth popup
+- [x] **Slice 3: Working authentication flow**
+  - [x] Configure Jira API credentials in backend
   - [x] Create database migration for `users` table
   - [x] Create `User` SQLAlchemy model
-  - [x] Add `POST /api/auth/callback` endpoint to receive Nango connection ID
-  - [x] Create user record in database on successful callback
+  - [x] Add `POST /api/auth/callback` endpoint
+  - [x] Create user record in database on successful auth
   - [x] Set HTTP-only session cookie on successful auth
   - [x] Redirect user to `/dashboard` after successful authentication
 
@@ -51,7 +50,7 @@ User stays logged in after page refresh; unauthenticated users are redirected.
   - [x] Create `lib/api.ts` client for backend calls
   - [x] Add auth check to `/dashboard` page (redirect to `/` if not authenticated)
   - [x] Show loading state while checking session
-  - [x] Display error message on landing page if OAuth fails
+  - [x] Display error message on landing page if auth fails
 
 ---
 
@@ -60,7 +59,7 @@ User stays logged in after page refresh; unauthenticated users are redirected.
 Authenticated user can see and select a Jira board.
 
 - [x] **Slice 5: Fetch and display boards in searchable dropdown**
-  - [x] Add `GET /api/boards` endpoint that fetches boards from Jira via Nango
+  - [x] Add `GET /api/boards` endpoint that fetches boards from Jira API
   - [x] Create `BoardSelector.tsx` component (searchable dropdown)
   - [x] Fetch boards on dashboard page load
   - [x] Display "No items" message if user has no accessible boards

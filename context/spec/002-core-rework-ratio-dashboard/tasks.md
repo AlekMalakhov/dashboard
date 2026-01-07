@@ -35,7 +35,7 @@ Create the API endpoint returning mock data to verify end-to-end flow.
 Query Jira for bugs created in the time range.
 
 - [x] **Slice 3: Real bug data from Jira**
-  - [x] Implement `ReworkService._fetch_bugs()` using JQL via Nango proxy
+  - [x] Implement `ReworkService._fetch_bugs()` using JQL via Jira API
   - [x] Parse Jira search response into typed models
   - [x] Return actual `bugs_linked` count in response
   - [x] Handle Jira API errors (401, 403, 502)
