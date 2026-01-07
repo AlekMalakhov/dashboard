@@ -94,6 +94,9 @@ class ReworkService:
         """
         Fetch completed bugs from Jira for a project.
 
+        Only bugs with Story Points assigned are fetched for accurate
+        rework point calculation.
+
         Args:
             project_key: Jira project key to query
             days: Number of days to look back
@@ -104,7 +107,14 @@ class ReworkService:
         """
         try:
             # Fetch bugs that were completed (Done/Closed) in the time period
-            jql = f"project = {project_key} AND type = Bug AND status IN (Done, Closed) AND resolved >= -{days}d"
+            # Only include bugs with Story Points assigned
+            jql = (
+                f"project = {project_key} "
+                f"AND type = Bug "
+                f"AND status IN (Done, Closed) "
+                f'AND "Story Points" IS NOT EMPTY '
+                f"AND resolved >= -{days}d"
+            )
             fields = "key,summary,created"
             if story_points_field_id:
                 fields += f",{story_points_field_id}"
@@ -213,7 +223,10 @@ class ReworkService:
         story_points_field_id: str | None = None,
     ) -> list[dict]:
         """
-        Fetch all completed stories, tasks, and sub-tasks from Jira for a project.
+        Fetch all completed stories and tasks from Jira for a project.
+
+        Note: Only Stories and Tasks are included (no Epics, Sub-tasks).
+        Only items with Story Points assigned are fetched.
 
         Args:
             project_key: Jira project key to query
@@ -221,14 +234,16 @@ class ReworkService:
             story_points_field_id: Custom field ID for story points
 
         Returns:
-            List of completed story/task/sub-task issues from Jira
+            List of completed story/task issues from Jira
         """
         try:
-            # Fetch stories, tasks, sub-tasks, and epics that were resolved in the time period
+            # Fetch stories and tasks that were resolved in the time period
+            # Only include items with Story Points assigned
             jql = (
                 f"project = {project_key} "
-                f"AND type IN (Story, Task, Sub-task, Epic) "
+                f"AND type IN (Story, Task) "
                 f"AND status IN (Done, Closed) "
+                f'AND "Story Points" IS NOT EMPTY '
                 f"AND resolved >= -{days}d"
             )
             fields = "key,summary,resolved"
