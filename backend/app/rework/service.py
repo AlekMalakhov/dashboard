@@ -1,13 +1,14 @@
 """Service for calculating rework metrics from Jira data."""
 
 import asyncio
+from datetime import datetime, timedelta
 
 import httpx
 from fastapi import HTTPException, status
 from loguru import logger
 
 from app.core.jira_client import JiraClient, get_jira_client
-from app.rework.schemas import IssueDetail, JiraSearchResponse, ReworkMetricsResponse
+from app.rework.schemas import IssueDetail, JiraSearchResponse, ReworkMetricsResponse, ReworkTrendResponse, WeeklyDataPoint
 
 
 class ReworkService:
@@ -106,16 +107,17 @@ class ReworkService:
             List of completed bug issues from Jira
         """
         try:
-            # Fetch bugs that were completed (Done/Closed) in the time period
+            # Fetch bugs that were completed in the time period
             # Only include bugs with Story Points assigned
+            # Using statusCategory = Done to capture all "done" statuses (Done, Closed, Resolved, etc.)
             jql = (
                 f"project = {project_key} "
                 f"AND type = Bug "
-                f"AND status IN (Done, Closed) "
+                f"AND statusCategory = Done "
                 f'AND "Story Points" IS NOT EMPTY '
-                f"AND resolved >= -{days}d"
+                f'AND resolved >= "-{days}d"'
             )
-            fields = "key,summary,created"
+            fields = "key,summary,created,resolved"
             if story_points_field_id:
                 fields += f",{story_points_field_id}"
 
@@ -123,7 +125,7 @@ class ReworkService:
 
             all_issues = []
             start_at = 0
-            max_results = 100
+            max_results = 400
 
             while True:
                 params = {
@@ -202,15 +204,33 @@ class ReworkService:
 
             logger.info(f"Fetching {len(story_keys)} parent stories")
 
-            data = await self.jira.get(
-                "/rest/api/3/search/jql",
-                params={"jql": jql, "fields": fields, "maxResults": 100},
-            )
+            all_issues = []
+            start_at = 0
+            max_results = 400
 
-            search_response = JiraSearchResponse(**data)
-            logger.info(f"Fetched {len(search_response.issues)} parent stories")
+            while True:
+                params = {
+                    "jql": jql,
+                    "fields": fields,
+                    "maxResults": max_results,
+                    "startAt": start_at,
+                }
 
-            return [issue.model_dump() for issue in search_response.issues]
+                data = await self.jira.get("/rest/api/3/search/jql", params=params)
+                search_response = JiraSearchResponse(**data)
+                all_issues.extend(search_response.issues)
+
+                logger.info(
+                    f"Fetched {len(search_response.issues)} parent stories "
+                    f"(total: {len(all_issues)} / {search_response.total})"
+                )
+
+                if len(all_issues) >= search_response.total:
+                    break
+
+                start_at = len(all_issues)
+
+            return [issue.model_dump() for issue in all_issues]
 
         except Exception as e:
             logger.error(f"Failed to fetch parent stories: {e}")
@@ -239,22 +259,23 @@ class ReworkService:
         try:
             # Fetch stories and tasks that were resolved in the time period
             # Only include items with Story Points assigned
+            # Using statusCategory = Done to capture all "done" statuses (Done, Closed, Resolved, etc.)
             jql = (
                 f"project = {project_key} "
                 f"AND type IN (Story, Task) "
-                f"AND status IN (Done, Closed) "
+                f"AND statusCategory = Done "
                 f'AND "Story Points" IS NOT EMPTY '
-                f"AND resolved >= -{days}d"
+                f'AND resolved >= "-{days}d"'
             )
             fields = "key,summary,resolved"
             if story_points_field_id:
                 fields += f",{story_points_field_id}"
 
-            logger.info(f"Fetching completed stories for project {project_key}")
+            logger.info(f"Fetching completed stories for project {project_key} with JQL: {jql}")
 
             all_issues = []
             start_at = 0
-            max_results = 100
+            max_results = 400
 
             while True:
                 params = {
@@ -270,7 +291,7 @@ class ReworkService:
 
                 logger.info(
                     f"Fetched {len(search_response.issues)} stories "
-                    f"(total: {len(all_issues)} / {search_response.total})"
+                    f"(accumulated: {len(all_issues)} / jira_total: {search_response.total}, startAt: {start_at})"
                 )
 
                 if len(all_issues) >= search_response.total:
@@ -390,6 +411,196 @@ class ReworkService:
             f"Rework metrics: {rework_ratio}% ratio, {bugs_linked} bugs, "
             f"{stories_analyzed} stories"
         )
+
+        return response
+
+    @staticmethod
+    def _get_week_start(date_str: str) -> str:
+        """
+        Get Monday (start of week) for a given date string.
+
+        Uses ISO week definition where Monday is the first day of the week.
+
+        Args:
+            date_str: ISO 8601 date string (e.g., "2024-01-15T10:30:00Z")
+
+        Returns:
+            ISO format date string for Monday of that week (YYYY-MM-DD)
+        """
+        # Parse the date string (handle various ISO formats)
+        if "T" in date_str:
+            date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        else:
+            date_obj = datetime.fromisoformat(date_str)
+
+        # Get Monday of the week (weekday() returns 0 for Monday, 6 for Sunday)
+        days_since_monday = date_obj.weekday()
+        monday = date_obj - timedelta(days=days_since_monday)
+
+        return monday.strftime("%Y-%m-%d")
+
+    def _group_issues_by_week(
+        self,
+        issues: list[dict],
+        story_points_field_id: str | None,
+    ) -> dict[str, tuple[float, int]]:
+        """
+        Group issues by week start date and sum story points.
+
+        Args:
+            issues: List of Jira issues with 'resolved' field
+            story_points_field_id: Custom field ID for story points
+
+        Returns:
+            Dict mapping week_start_date to (total_story_points, issue_count)
+        """
+        weeks: dict[str, tuple[float, int]] = {}
+
+        for issue in issues:
+            # Get resolved date
+            resolved_date = issue.get("fields", {}).get("resolved")
+            if not resolved_date:
+                continue
+
+            # Get week start date
+            week_start = self._get_week_start(resolved_date)
+
+            # Get story points
+            points = 0.0
+            if story_points_field_id:
+                points_value = issue.get("fields", {}).get(story_points_field_id)
+                if points_value is not None and isinstance(points_value, (int, float)):
+                    points = float(points_value)
+
+            # Add to week totals
+            if week_start in weeks:
+                current_points, current_count = weeks[week_start]
+                weeks[week_start] = (current_points + points, current_count + 1)
+            else:
+                weeks[week_start] = (points, 1)
+
+        return weeks
+
+    def _generate_all_weeks(self, start_date: datetime, end_date: datetime) -> list[str]:
+        """
+        Generate all Monday dates between start and end date (inclusive).
+
+        Args:
+            start_date: Start of date range
+            end_date: End of date range
+
+        Returns:
+            List of ISO format date strings for all Mondays in range
+        """
+        # Get Monday of the start week
+        days_since_monday = start_date.weekday()
+        current_monday = start_date - timedelta(days=days_since_monday)
+
+        weeks = []
+        while current_monday <= end_date:
+            weeks.append(current_monday.strftime("%Y-%m-%d"))
+            current_monday += timedelta(days=7)
+
+        return weeks
+
+    async def get_rework_trend(
+        self,
+        board_id: int,
+        months: int,
+    ) -> ReworkTrendResponse:
+        """
+        Calculate weekly rework ratio trend for a Jira board.
+
+        Args:
+            board_id: Jira board ID to analyze
+            months: Number of months to look back (1, 3, or 6)
+
+        Returns:
+            ReworkTrendResponse: Weekly trend data with metrics
+        """
+        logger.info(f"Calculating rework trend for board {board_id}, months {months}")
+
+        # Step 1: Get project key for the board
+        project_key = await self._get_board_project_key(board_id)
+        if not project_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Could not find project for board {board_id}",
+            )
+
+        # Step 2: Detect story points field
+        story_points_field_id = await self._detect_story_points_field()
+
+        # Step 3: Calculate date range
+        days = months * 30
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        logger.info(f"Fetching data from {start_date.date()} to {end_date.date()}")
+
+        # Step 4: Fetch all bugs and stories in parallel
+        bugs, stories = await asyncio.gather(
+            self._fetch_bugs(project_key, days, story_points_field_id),
+            self._fetch_completed_stories(project_key, days, story_points_field_id),
+        )
+        logger.info(f"Found {len(bugs)} bugs and {len(stories)} completed stories")
+
+        # Step 5: Group by week
+        bugs_by_week = self._group_issues_by_week(bugs, story_points_field_id)
+        stories_by_week = self._group_issues_by_week(stories, story_points_field_id)
+
+        # Step 6: Generate all weeks in range
+        all_weeks = self._generate_all_weeks(start_date, end_date)
+
+        # Step 7: Calculate metrics per week
+        weekly_data: list[WeeklyDataPoint] = []
+        total_items_excluded = 0
+
+        for week_start in all_weeks:
+            # Get data for this week (default to 0 points and 0 count if no data)
+            rework_points, bugs_count = bugs_by_week.get(week_start, (0.0, 0))
+            delivered_points, stories_count = stories_by_week.get(week_start, (0.0, 0))
+
+            # Calculate rework ratio
+            rework_ratio = 0.0
+            if delivered_points > 0:
+                rework_ratio = (rework_points / delivered_points) * 100
+
+            weekly_data.append(
+                WeeklyDataPoint(
+                    week_start_date=week_start,
+                    rework_ratio=round(rework_ratio, 1),
+                    rework_points=rework_points,
+                    delivered_points=delivered_points,
+                    bugs_count=bugs_count,
+                    stories_count=stories_count,
+                )
+            )
+
+        # Step 8: Check for items without story points
+        bugs_without_points = sum(
+            1 for bug in bugs if not bug.get("fields", {}).get(story_points_field_id)
+        )
+        stories_without_points = sum(
+            1 for story in stories if not story.get("fields", {}).get(story_points_field_id)
+        )
+        total_items_excluded = bugs_without_points + stories_without_points
+
+        # Warning message
+        warning = None
+        if not story_points_field_id:
+            warning = "Story points field not found in Jira"
+        elif total_items_excluded > 0:
+            warning = f"{total_items_excluded} items excluded (no story points)"
+
+        response = ReworkTrendResponse(
+            weeks=weekly_data,
+            total_weeks=len(weekly_data),
+            items_excluded=total_items_excluded,
+            warning=warning,
+        )
+
+        logger.info(f"Generated {len(weekly_data)} weeks of trend data for board {board_id}")
 
         return response
 
