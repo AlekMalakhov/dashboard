@@ -98,3 +98,59 @@ export async function getReworkMetrics(
 
   return response.json();
 }
+
+/**
+ * Weekly data point for rework trend
+ */
+export interface WeeklyDataPoint {
+  week_start_date: string;
+  rework_ratio: number;
+  rework_points: number;
+  delivered_points: number;
+  bugs_count: number;
+  stories_count: number;
+}
+
+/**
+ * Rework trend response from backend
+ */
+export interface ReworkTrendResponse {
+  weeks: WeeklyDataPoint[];
+  total_weeks: number;
+  items_excluded: number;
+  warning?: string;
+}
+
+/**
+ * Valid time range options in months for trend data
+ */
+export type TrendTimeRange = 1 | 3 | 6;
+
+/**
+ * Fetches rework trend data for a specific board and time range
+ *
+ * @param boardId - The ID of the board to fetch trend data for
+ * @param months - The time range in months (1, 3, or 6)
+ * @returns Promise<ReworkTrendResponse> The rework trend data
+ * @throws Error if the request fails
+ */
+export async function getReworkTrend(
+  boardId: number,
+  months: TrendTimeRange = 3
+): Promise<ReworkTrendResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/rework/trend?board_id=${boardId}&months=${months}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch rework trend: ${response.statusText}`);
+  }
+
+  return response.json();
+}

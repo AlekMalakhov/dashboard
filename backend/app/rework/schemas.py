@@ -93,3 +93,23 @@ class ReworkMetricsResponse(BaseModel):
         default_factory=list,
         description="List of stories included in the calculation",
     )
+
+
+class WeeklyDataPoint(BaseModel):
+    """Single week's rework metrics."""
+
+    week_start_date: str = Field(..., description="ISO 8601 date (YYYY-MM-DD)")
+    rework_ratio: float = Field(..., description="Percentage (0-100+)", ge=0)
+    rework_points: float = Field(..., description="Story points from bugs", ge=0)
+    delivered_points: float = Field(..., description="Story points from stories/tasks", ge=0)
+    bugs_count: int = Field(..., description="Number of bugs resolved", ge=0)
+    stories_count: int = Field(..., description="Number of stories/tasks resolved", ge=0)
+
+
+class ReworkTrendResponse(BaseModel):
+    """Response model for rework trend over time."""
+
+    weeks: list[WeeklyDataPoint] = Field(..., description="Ordered oldest-first")
+    total_weeks: int = Field(..., description="Total number of weeks in response", ge=0)
+    items_excluded: int = Field(..., description="Number of items excluded from analysis", ge=0)
+    warning: Optional[str] = Field(None, description="Warning message if data quality issues detected")

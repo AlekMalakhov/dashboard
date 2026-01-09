@@ -11,6 +11,7 @@ import {
 import BoardSelector from '@/components/board-selector';
 import TimeRangeSelector from '@/components/time-range-selector';
 import ReworkRatioCard from '@/components/rework-ratio-card';
+import ReworkTrendChart from '@/components/rework-trend-chart';
 import ContextWidgetsGrid from '@/components/context-widgets-grid';
 import MissingDataWarning from '@/components/missing-data-warning';
 import IssuesModal from '@/components/issues-modal';
@@ -149,6 +150,10 @@ export default function Dashboard() {
               boards={boards}
               selectedBoard={selectedBoard}
               onSelect={handleBoardSelect}
+              onClear={() => {
+                setSelectedBoard(null);
+                setActiveModal(null);
+              }}
             />
           </div>
         )}
@@ -218,6 +223,9 @@ export default function Dashboard() {
               ratio={metrics?.rework_ratio ?? 0}
               isLoading={isLoadingMetrics}
             />
+
+            {/* Rework Trend Chart */}
+            <ReworkTrendChart boardId={selectedBoard.id} />
 
             {/* Context Metrics Grid */}
             <ContextWidgetsGrid

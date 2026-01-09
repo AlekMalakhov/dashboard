@@ -289,6 +289,7 @@ class ReworkService:
                 search_response = JiraSearchResponse(**data)
                 all_issues.extend(search_response.issues)
 
+                print(f"DEBUG: Fetched {len(search_response.issues)} stories, accumulated: {len(all_issues)}, jira_total: {search_response.total}, startAt: {start_at}", flush=True)
                 logger.info(
                     f"Fetched {len(search_response.issues)} stories "
                     f"(accumulated: {len(all_issues)} / jira_total: {search_response.total}, startAt: {start_at})"
