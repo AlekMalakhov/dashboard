@@ -112,7 +112,7 @@ export default function ReworkRatioCard({
             className="text-6xl font-bold metric-value drop-shadow-sm"
             role="status"
             aria-live="polite"
-            aria-label={`Rework ratio: ${ratio} percent`}
+            aria-label={`Defect rate: ${ratio} percent`}
           >
             {ratio}%
           </div>
@@ -125,7 +125,7 @@ export default function ReworkRatioCard({
               onFocus={() => setShowHint(true)}
               onBlur={() => setShowHint(false)}
               onClick={() => setShowHint(!showHint)}
-              aria-label="Info about Rework Ratio"
+              aria-label="Info about Defect Rate"
             >
               <svg
                 className="w-6 h-6"
@@ -143,9 +143,9 @@ export default function ReworkRatioCard({
             </button>
             {showHint && (
               <div className="absolute z-10 left-1/2 -translate-x-1/2 top-full mt-2 w-72 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl animate-fade-in">
-                <p className="font-semibold mb-1">Rework Ratio Formula:</p>
-                <p className="text-gray-300">(Rework Points / Story Points Delivered) × 100%</p>
-                <p className="text-gray-300 mt-2">Lower is better. Indicates what percentage of completed work was spent on fixing bugs rather than delivering new features.</p>
+                <p className="font-semibold mb-1">Defect Rate Formula:</p>
+                <p className="text-gray-300">(Rework ÷ Delivered) × 100%</p>
+                <p className="text-gray-300 mt-2">Lower is better. Shows the percentage of effort spent fixing bugs versus delivering new work.</p>
                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-900" />
               </div>
             )}

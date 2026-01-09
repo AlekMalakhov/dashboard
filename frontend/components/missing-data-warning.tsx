@@ -59,7 +59,7 @@ export default function MissingDataWarning({
 
   // Use custom message if provided, otherwise use default
   const displayMessage =
-    message || `${excludedCount} items excluded due to missing story points`;
+    message || `${excludedCount} items excluded (no story points)`;
 
   const clickableClasses = onClick
     ? "cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/40 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200"

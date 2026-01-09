@@ -66,43 +66,43 @@ export default function ContextWidgetsGrid({
       aria-label="Rework metrics"
     >
       <ContextWidget
-        title="Stories Analyzed"
+        title="Completed"
         value={storiesAnalyzed}
         isLoading={isLoading}
         onClick={onStoriesClick}
-        hint="Total number of Stories and Tasks with Story Points completed (Done/Closed status) in the selected time period."
+        hint="Total Stories and Tasks completed in the selected time period. Click to see the full list."
         accentColor="blue"
       />
       <ContextWidget
-        title="Bugs Linked"
+        title="Bugs Fixed"
         value={bugsLinked}
         isLoading={isLoading}
         onClick={onBugsClick}
-        hint="Total number of Bugs with Story Points completed (Done/Closed status) in the selected time period."
+        hint="Total Bugs resolved in the selected time period. Click to see the full list."
         accentColor="red"
       />
       <ContextWidget
-        title="SP Delivered"
+        title="Delivered"
         value={deliveredPoints}
         isLoading={isLoading}
         onClick={onDeliveredPointsClick}
-        hint="Sum of Story Points from completed Stories and Tasks. Only items with Story Points assigned are included."
+        hint="Story Points from completed Stories and Tasks. This represents the team's productive output."
         accentColor="green"
       />
       <ContextWidget
-        title="Rework Points"
+        title="Rework"
         value={reworkPoints}
         isLoading={isLoading}
         onClick={onReworkPointsClick}
-        hint="Sum of Story Points from completed Bugs. Rework Ratio = (Rework Points / SP Delivered) × 100%."
+        hint="Story Points spent on bug fixes. Defect Rate = (Rework ÷ Delivered) × 100%."
         accentColor="yellow"
       />
       <ContextWidget
-        title="Excluded"
+        title="Unestimated"
         value={itemsExcluded}
         isLoading={isLoading}
         onClick={onExcludedClick}
-        hint="Number of items excluded from the Story Points calculation because they don't have Story Points assigned. Click to see the list."
+        hint="Items without Story Points. These are excluded from calculations. Click to see which items need estimates."
         accentColor="gray"
       />
     </div>

@@ -114,7 +114,7 @@ export default function Dashboard() {
               Rework Dashboard
             </h1>
             <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-              Track and analyze rework metrics across your Jira boards
+              Track defect rate and quality metrics across your Jira boards
             </p>
           </div>
           <ThemeToggle />
@@ -170,7 +170,7 @@ export default function Dashboard() {
               Select a Board to Get Started
             </h2>
             <p className="text-gray-500 dark:text-gray-400 max-w-md">
-              Choose a Jira board from the dropdown above to view rework metrics and insights for your team.
+              Choose a Jira board from the dropdown above to view quality metrics and insights for your team.
             </p>
           </div>
         )}
@@ -266,19 +266,19 @@ export default function Dashboard() {
       <IssuesModal
         isOpen={activeModal === 'stories' || activeModal === 'delivered'}
         onClose={() => setActiveModal(null)}
-        title={activeModal === 'stories' ? 'Stories Analyzed' : 'Story Points Delivered'}
+        title={activeModal === 'stories' ? 'Completed Items' : 'Delivered Points Breakdown'}
         issues={metrics?.stories ?? []}
       />
       <IssuesModal
         isOpen={activeModal === 'bugs' || activeModal === 'rework'}
         onClose={() => setActiveModal(null)}
-        title={activeModal === 'bugs' ? 'Bugs Linked' : 'Rework Points'}
+        title={activeModal === 'bugs' ? 'Bugs Fixed' : 'Rework Points Breakdown'}
         issues={metrics?.bugs ?? []}
       />
       <IssuesModal
         isOpen={activeModal === 'excluded'}
         onClose={() => setActiveModal(null)}
-        title="Excluded Items (No Story Points)"
+        title="Unestimated Items"
         issues={[
           ...(metrics?.bugs ?? []).filter(b => b.story_points === null),
           ...(metrics?.stories ?? []).filter(s => s.story_points === null),
