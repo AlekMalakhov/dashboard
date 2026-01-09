@@ -31,12 +31,11 @@ class JiraIssue(BaseModel):
 
 
 class JiraSearchResponse(BaseModel):
-    """Response from Jira search API."""
+    """Response from Jira search API (token-based pagination)."""
 
     issues: list[JiraIssue] = Field(default_factory=list, description="List of issues")
-    startAt: int = Field(default=0, description="Start index for pagination")
-    maxResults: int = Field(default=50, description="Maximum results per page")
-    total: int = Field(default=0, description="Total number of results")
+    nextPageToken: Optional[str] = Field(default=None, description="Token for next page")
+    isLast: bool = Field(default=True, description="Whether this is the last page")
 
 
 class IssueDetail(BaseModel):

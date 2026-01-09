@@ -124,16 +124,17 @@ class ReworkService:
             logger.info(f"Fetching bugs for project {project_key} with JQL: {jql}")
 
             all_issues = []
-            start_at = 0
-            max_results = 400
+            max_results = 100  # Jira API max per request
+            next_page_token: str | None = None
 
             while True:
-                params = {
+                params: dict = {
                     "jql": jql,
                     "fields": fields,
                     "maxResults": max_results,
-                    "startAt": start_at,
                 }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
 
                 data = await self.jira.get("/rest/api/3/search/jql", params=params)
                 search_response = JiraSearchResponse(**data)
@@ -141,13 +142,13 @@ class ReworkService:
 
                 logger.info(
                     f"Fetched {len(search_response.issues)} bugs "
-                    f"(total: {len(all_issues)} / {search_response.total})"
+                    f"(accumulated: {len(all_issues)}, isLast: {search_response.isLast})"
                 )
 
-                if len(all_issues) >= search_response.total:
+                if search_response.isLast:
                     break
 
-                start_at = len(all_issues)
+                next_page_token = search_response.nextPageToken
 
             return [issue.model_dump() for issue in all_issues]
 
@@ -205,16 +206,17 @@ class ReworkService:
             logger.info(f"Fetching {len(story_keys)} parent stories")
 
             all_issues = []
-            start_at = 0
-            max_results = 400
+            max_results = 100  # Jira API max per request
+            next_page_token: str | None = None
 
             while True:
-                params = {
+                params: dict = {
                     "jql": jql,
                     "fields": fields,
                     "maxResults": max_results,
-                    "startAt": start_at,
                 }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
 
                 data = await self.jira.get("/rest/api/3/search/jql", params=params)
                 search_response = JiraSearchResponse(**data)
@@ -222,13 +224,13 @@ class ReworkService:
 
                 logger.info(
                     f"Fetched {len(search_response.issues)} parent stories "
-                    f"(total: {len(all_issues)} / {search_response.total})"
+                    f"(accumulated: {len(all_issues)}, isLast: {search_response.isLast})"
                 )
 
-                if len(all_issues) >= search_response.total:
+                if search_response.isLast:
                     break
 
-                start_at = len(all_issues)
+                next_page_token = search_response.nextPageToken
 
             return [issue.model_dump() for issue in all_issues]
 
@@ -274,31 +276,31 @@ class ReworkService:
             logger.info(f"Fetching completed stories for project {project_key} with JQL: {jql}")
 
             all_issues = []
-            start_at = 0
-            max_results = 400
+            max_results = 100  # Jira API max per request
+            next_page_token: str | None = None
 
             while True:
-                params = {
+                params: dict = {
                     "jql": jql,
                     "fields": fields,
                     "maxResults": max_results,
-                    "startAt": start_at,
                 }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
 
                 data = await self.jira.get("/rest/api/3/search/jql", params=params)
                 search_response = JiraSearchResponse(**data)
                 all_issues.extend(search_response.issues)
 
-                print(f"DEBUG: Fetched {len(search_response.issues)} stories, accumulated: {len(all_issues)}, jira_total: {search_response.total}, startAt: {start_at}", flush=True)
                 logger.info(
                     f"Fetched {len(search_response.issues)} stories "
-                    f"(accumulated: {len(all_issues)} / jira_total: {search_response.total}, startAt: {start_at})"
+                    f"(accumulated: {len(all_issues)}, isLast: {search_response.isLast})"
                 )
 
-                if len(all_issues) >= search_response.total:
+                if search_response.isLast:
                     break
 
-                start_at = len(all_issues)
+                next_page_token = search_response.nextPageToken
 
             return [issue.model_dump() for issue in all_issues]
 
