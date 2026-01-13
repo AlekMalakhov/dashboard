@@ -23,12 +23,14 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>(84);
+  const [timeRange, setTimeRange] = useState<TimeRange>(90);
   const [metrics, setMetrics] = useState<ReworkMetrics | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [boardsError, setBoardsError] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+
+  const DEFAULT_BOARD_NAME = 'ImaGenAItion Labs';
 
   // Fetch boards function
   const fetchBoards = useCallback(async () => {
@@ -37,6 +39,13 @@ export default function Dashboard() {
       setBoardsError(null);
       const data = await getBoards();
       setBoards(data.boards);
+      // Auto-select the default board
+      const defaultBoard = data.boards.find(
+        (board) => board.name === DEFAULT_BOARD_NAME
+      );
+      if (defaultBoard) {
+        setSelectedBoard(defaultBoard);
+      }
     } catch (error) {
       console.error('Error fetching boards:', error);
       setBoardsError('Failed to load boards. Please check the backend connection.');

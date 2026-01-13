@@ -10,6 +10,8 @@ export interface BoardSelectorProps {
   boards: Board[];
   selectedBoard: Board | null;
   onSelect: (board: Board) => void;
+  onClear?: () => void;
+  disabled?: boolean;
 }
 
 /**
@@ -32,6 +34,8 @@ export default function BoardSelector({
   boards,
   selectedBoard,
   onSelect,
+  onClear,
+  disabled = false,
 }: BoardSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -67,6 +71,12 @@ export default function BoardSelector({
   const handleClearSelection = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSearchTerm('');
+    if (selectedBoard) {
+      onClear?.();
+      // Keep dropdown open so user can immediately pick another board.
+      setIsOpen(true);
+      setHighlightedIndex(-1);
+    }
     inputRef.current?.focus();
   };
 
@@ -155,7 +165,7 @@ export default function BoardSelector({
           }
           className={`w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
             selectedBoard && !searchTerm ? 'font-medium' : ''
-          }`}
+          } ${disabled ? 'cursor-not-allowed opacity-75' : ''}`}
           role="combobox"
           aria-expanded={isOpen}
           aria-controls="board-dropdown"
@@ -163,11 +173,11 @@ export default function BoardSelector({
           aria-activedescendant={
             highlightedIndex >= 0 ? `board-option-${highlightedIndex}` : undefined
           }
-          disabled={boards.length === 0}
+          disabled={boards.length === 0 || disabled}
         />
 
-        {/* Clear button (shown when there's a selection or search term) */}
-        {(selectedBoard || searchTerm) && (
+        {/* Clear button (shown when there's a selection or search term, hidden when disabled) */}
+        {!disabled && (selectedBoard || searchTerm) && (
           <button
             type="button"
             onClick={handleClearSelection}
@@ -212,7 +222,7 @@ export default function BoardSelector({
       </div>
 
       {/* Dropdown List */}
-      {isOpen && (
+      {isOpen && !disabled && (
         <div
           id="board-dropdown"
           className="absolute z-10 w-full max-w-md mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl max-h-60 overflow-auto animate-fade-in ring-1 ring-black/5 dark:ring-white/10"
@@ -276,7 +286,7 @@ export default function BoardSelector({
       )}
 
       {/* Keyboard hint */}
-      {isOpen && filteredBoards.length > 0 && (
+      {isOpen && !disabled && filteredBoards.length > 0 && (
         <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
           Use <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300">↑</kbd> <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300">↓</kbd> to navigate, <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300">Enter</kbd> to select
         </p>
