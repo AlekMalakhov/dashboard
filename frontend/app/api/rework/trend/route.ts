@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getReworkTrend } from '@/lib/rework-service';
+import { JiraApiError } from '@/lib/jira-client';
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const boardIdParam = searchParams.get('board_id');
+    const monthsParam = searchParams.get('months');
+
+    // Validate board_id
+    if (!boardIdParam) {
+      return NextResponse.json(
+        { error: 'board_id parameter is required' },
+        { status: 400 }
+      );
+    }
+
+    const boardId = parseInt(boardIdParam, 10);
+    if (isNaN(boardId) || boardId <= 0) {
+      return NextResponse.json(
+        { error: 'board_id must be a positive integer' },
+        { status: 400 }
+      );
+    }
+
+    // Validate months (default to 3)
+    const months = monthsParam ? parseInt(monthsParam, 10) : 3;
+    if (![1, 2, 3, 6].includes(months)) {
+      return NextResponse.json(
+        { error: 'months parameter must be one of: 1, 2, 3, 6' },
+        { status: 400 }
+      );
+    }
+
+    const trend = await getReworkTrend(boardId, months);
+
+    return NextResponse.json(trend);
+  } catch (error) {
+    console.error('Error calculating rework trend:', error);
+
+    if (error instanceof JiraApiError) {
+      if (error.statusCode === 401) {
+        return NextResponse.json(
+          { error: 'Invalid Jira credentials' },
+          { status: 401 }
+        );
+      }
+      if (error.statusCode === 403) {
+        return NextResponse.json(
+          { error: 'Access to Jira is forbidden' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to communicate with Jira API' },
+        { status: 502 }
+      );
+    }
+
+    if (error instanceof Error && error.message.includes('Could not find project')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to calculate rework trend' },
+      { status: 500 }
+    );
+  }
+}

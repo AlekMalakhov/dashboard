@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getReworkMetrics } from '@/lib/rework-service';
+import { JiraApiError } from '@/lib/jira-client';
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const boardIdParam = searchParams.get('board_id');
+    const daysParam = searchParams.get('days');
+
+    // Validate board_id
+    if (!boardIdParam) {
+      return NextResponse.json(
+        { error: 'board_id parameter is required' },
+        { status: 400 }
+      );
+    }
+
+    const boardId = parseInt(boardIdParam, 10);
+    if (isNaN(boardId) || boardId <= 0) {
+      return NextResponse.json(
+        { error: 'board_id must be a positive integer' },
+        { status: 400 }
+      );
+    }
+
+    // Validate days (default to 30)
+    const days = daysParam ? parseInt(daysParam, 10) : 30;
+    if (![30, 60, 90, 180].includes(days)) {
+      return NextResponse.json(
+        { error: 'days parameter must be one of: 30, 60, 90, 180' },
+        { status: 400 }
+      );
+    }
+
+    const metrics = await getReworkMetrics(boardId, days);
+
+    return NextResponse.json(metrics);
+  } catch (error) {
+    console.error('Error calculating rework metrics:', error);
+
+    if (error instanceof JiraApiError) {
+      if (error.statusCode === 401) {
+        return NextResponse.json(
+          { error: 'Invalid Jira credentials' },
+          { status: 401 }
+        );
+      }
+      if (error.statusCode === 403) {
+        return NextResponse.json(
+          { error: 'Access to Jira is forbidden' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to communicate with Jira API' },
+        { status: 502 }
+      );
+    }
+
+    if (error instanceof Error && error.message.includes('Could not find project')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to calculate rework metrics' },
+      { status: 500 }
+    );
+  }
+}

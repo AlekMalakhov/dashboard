@@ -3,7 +3,9 @@
  * Handles all HTTP requests to the backend with proper typing
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use relative paths for API calls (works with Next.js API routes on Vercel)
+// Fall back to external backend URL for local development if NEXT_PUBLIC_API_URL is set
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Board object from backend
@@ -68,7 +70,7 @@ export async function getBoards(): Promise<BoardsResponse> {
 /**
  * Valid time range options in days
  */
-export type TimeRange = 30 | 60 | 84 | 90;
+export type TimeRange = 30 | 60 | 90 | 180;
 
 /**
  * Fetches rework metrics for a specific board and time range
@@ -124,7 +126,7 @@ export interface ReworkTrendResponse {
 /**
  * Valid time range options in months for trend data
  */
-export type TrendTimeRange = 1 | 3 | 6;
+export type TrendTimeRange = 1 | 2 | 3 | 6;
 
 /**
  * Fetches rework trend data for a specific board and time range
