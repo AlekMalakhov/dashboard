@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   const DEFAULT_BOARD_NAME = 'ImaGenAItion Labs';
+  const DISPLAY_BOARD_NAME = 'My Project'; // Generic name for public display
 
   // Fetch boards function
   const fetchBoards = useCallback(async () => {
@@ -152,12 +153,12 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Board selector */}
+        {/* Board selector - show generic name for privacy */}
         {!boardsError && (
           <div className="mb-8">
             <BoardSelector
-              boards={boards}
-              selectedBoard={selectedBoard}
+              boards={boards.map(b => ({ ...b, name: b.name === DEFAULT_BOARD_NAME ? DISPLAY_BOARD_NAME : b.name }))}
+              selectedBoard={selectedBoard ? { ...selectedBoard, name: selectedBoard.name === DEFAULT_BOARD_NAME ? DISPLAY_BOARD_NAME : selectedBoard.name } : null}
               onSelect={handleBoardSelect}
               onClear={() => {
                 setSelectedBoard(null);
