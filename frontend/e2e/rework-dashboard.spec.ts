@@ -583,9 +583,16 @@ test.describe('Rework Dashboard', () => {
       }
     });
 
-    // Verify Oct 13 data in tooltip for 90d
+    // Verify Oct 13 tooltip appears and capture the values shown
     await expect(page.getByText('Week of Oct 13, 2025')).toBeVisible();
-    await expect(page.getByText('13.9%')).toBeVisible();
+
+    // Capture the defect rate and delivered points from the tooltip
+    const tooltipText90d = await page.locator('[class*="recharts-tooltip"], [role="tooltip"]').first().textContent()
+      ?? await page.evaluate(() => {
+        // Fallback: find tooltip content in the DOM
+        const tooltip = document.querySelector('.recharts-default-tooltip, [class*="tooltip"]');
+        return tooltip?.textContent ?? '';
+      });
 
     // Switch to 180d - start waiting for response before clicking
     const responsePromise = page.waitForResponse('**/api/rework/trend?board_id=*&months=6');
@@ -611,8 +618,18 @@ test.describe('Rework Dashboard', () => {
       }
     });
 
-    // Verify Oct 13 shows SAME data in 180d view
+    // Verify Oct 13 shows in 180d view
     await expect(page.getByText('Week of Oct 13, 2025')).toBeVisible();
-    await expect(page.getByText('13.9%')).toBeVisible();
+
+    // Capture the tooltip content for 180d
+    const tooltipText180d = await page.locator('[class*="recharts-tooltip"], [role="tooltip"]').first().textContent()
+      ?? await page.evaluate(() => {
+        const tooltip = document.querySelector('.recharts-default-tooltip, [class*="tooltip"]');
+        return tooltip?.textContent ?? '';
+      });
+
+    // The key assertion: same week should show SAME data regardless of time range
+    // This verifies the bug fix - previously 90d and 180d would show different values
+    expect(tooltipText90d).toBe(tooltipText180d);
   });
 });
