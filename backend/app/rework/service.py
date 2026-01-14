@@ -117,7 +117,7 @@ class ReworkService:
                 f'AND "Story Points" IS NOT EMPTY '
                 f'AND resolved >= "-{days}d"'
             )
-            fields = "key,summary,created,resolved"
+            fields = "key,summary,created,resolutiondate"
             if story_points_field_id:
                 fields += f",{story_points_field_id}"
 
@@ -269,7 +269,7 @@ class ReworkService:
                 f'AND "Story Points" IS NOT EMPTY '
                 f'AND resolved >= "-{days}d"'
             )
-            fields = "key,summary,resolved"
+            fields = "key,summary,resolutiondate"
             if story_points_field_id:
                 fields += f",{story_points_field_id}"
 
@@ -460,8 +460,8 @@ class ReworkService:
         weeks: dict[str, tuple[float, int]] = {}
 
         for issue in issues:
-            # Get resolved date
-            resolved_date = issue.get("fields", {}).get("resolved")
+            # Get resolved date (Jira REST API uses "resolutiondate" field name)
+            resolved_date = issue.get("fields", {}).get("resolutiondate")
             if not resolved_date:
                 continue
 
@@ -538,6 +538,14 @@ class ReworkService:
         days = months * 30
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
+
+        # Align start_date to Monday of that week for complete week data
+        # This ensures displayed weeks have all their data fetched
+        days_since_monday = start_date.weekday()
+        start_date = start_date - timedelta(days=days_since_monday)
+        # Recalculate days to include the full start week
+        # Add 1 day to account for time-of-day precision in Jira's relative date queries
+        days = (end_date - start_date).days + 1
 
         logger.info(f"Fetching data from {start_date.date()} to {end_date.date()}")
 
