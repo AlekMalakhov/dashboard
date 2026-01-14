@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Exclude e2e tests from linting
+    "e2e/**",
   ]),
 ]);
 
