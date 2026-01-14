@@ -3,56 +3,21 @@
 import { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   TooltipProps,
   Legend,
-  ReferenceLine,
+  Cell,
 } from 'recharts';
-import { getReworkTrend, type TrendTimeRange, type WeeklyDataPoint } from '@/lib/api';
-
-/**
- * Calculate 4-week moving average for the data
- */
-function calculateMovingAverage(data: ChartDataPoint[], window: number = 4): ChartDataPoint[] {
-  return data.map((point, index) => {
-    if (index < window - 1) {
-      // Not enough data points yet - use average of available points
-      const available = data.slice(0, index + 1);
-      const sum = available.reduce((acc, p) => acc + p.rework_ratio, 0);
-      return { ...point, movingAverage: Math.round(sum / available.length * 10) / 10 };
-    }
-
-    // Calculate moving average of last `window` points
-    const windowData = data.slice(index - window + 1, index + 1);
-    const sum = windowData.reduce((acc, p) => acc + p.rework_ratio, 0);
-    return { ...point, movingAverage: Math.round(sum / window * 10) / 10 };
-  });
-}
-
-/**
- * Determine trend direction based on moving average
- */
-function getTrendDirection(data: ChartDataPoint[]): { direction: 'improving' | 'stable' | 'degrading'; change: number } {
-  if (data.length < 4) return { direction: 'stable', change: 0 };
-
-  const recentAvg = data.slice(-4).reduce((acc, p) => acc + (p.movingAverage || 0), 0) / 4;
-  const olderAvg = data.slice(0, 4).reduce((acc, p) => acc + (p.movingAverage || 0), 0) / 4;
-
-  const change = Math.round((recentAvg - olderAvg) * 10) / 10;
-
-  if (change < -5) return { direction: 'improving', change };
-  if (change > 5) return { direction: 'degrading', change };
-  return { direction: 'stable', change };
-}
+import { getReworkTrend, type TrendTimeRange, type TimeRange, type WeeklyDataPoint } from '@/lib/api';
 
 /**
  * InfoTooltip Component
- * Displays an info icon with hover tooltip explaining the rework ratio trend
+ * Displays an info icon with hover tooltip explaining the chart
  */
 function InfoTooltip() {
   const [showHint, setShowHint] = useState(false);
@@ -67,7 +32,7 @@ function InfoTooltip() {
         onFocus={() => setShowHint(true)}
         onBlur={() => setShowHint(false)}
         onClick={() => setShowHint(!showHint)}
-        aria-label="Info about Defect Rate"
+        aria-label="Info about Work Breakdown"
       >
         <svg
           className="w-5 h-5"
@@ -85,16 +50,22 @@ function InfoTooltip() {
       </button>
       {showHint && (
         <div className="absolute z-20 left-0 top-full mt-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-lg shadow-xl animate-fade-in">
-          <p className="font-semibold mb-2">What is Defect Rate?</p>
-          <p className="text-gray-300 mb-2">
-            <span className="font-mono bg-gray-800 px-1 rounded">(Rework ÷ Delivered) × 100%</span>
-          </p>
+          <p className="font-semibold mb-2">How to read this chart</p>
           <p className="text-gray-300 mb-3">
-            Measures the percentage of team effort spent on fixing bugs compared to delivering new work. Lower is better.
+            Each bar shows total Story Points completed that week, split by type:
           </p>
-          <p className="font-semibold mb-1">Why can it exceed 100%?</p>
-          <p className="text-gray-300">
-            When more bug fixes are completed than features in a given week. This usually indicates a maintenance-focused sprint, not necessarily a quality issue.
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-blue-500 rounded"></div>
+              <span className="text-gray-300"><strong>Delivered</strong> — new features, stories, tasks</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className="text-gray-300"><strong>Rework</strong> — bug fixes</span>
+            </div>
+          </div>
+          <p className="text-gray-400 text-xs">
+            Ideally, blue should dominate. More red = more time fixing bugs.
           </p>
           <div className="absolute left-4 bottom-full w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-900" />
         </div>
@@ -104,19 +75,32 @@ function InfoTooltip() {
 }
 
 /**
+ * Convert days to months for the trend API
+ */
+function daysToMonths(days: TimeRange): TrendTimeRange {
+  switch (days) {
+    case 30: return 1;
+    case 60: return 2;
+    case 90: return 3;
+    case 180: return 6;
+  }
+}
+
+/**
  * Props for the ReworkTrendChart component
  */
 export interface ReworkTrendChartProps {
   boardId: number;
+  timeRange: TimeRange;
   className?: string;
 }
 
 /**
- * Type for chart data with formatted week label and moving average
+ * Type for chart data with formatted week label
  */
 interface ChartDataPoint extends WeeklyDataPoint {
   weekLabel: string;
-  movingAverage?: number;
+  total_points: number;
 }
 
 /**
@@ -137,7 +121,6 @@ function formatFullWeekLabel(dateString: string): string {
 
 /**
  * Custom tooltip component for the chart
- * Displays detailed information about a week when hovering over a data point
  */
 function CustomTooltip(props: TooltipProps<number, string>) {
   const { active, payload } = props as {
@@ -150,33 +133,28 @@ function CustomTooltip(props: TooltipProps<number, string>) {
   }
 
   const data = payload[0].payload;
+  const defectRate = data.delivered_points > 0
+    ? Math.round((data.rework_points / data.delivered_points) * 1000) / 10
+    : 0;
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 transition-colors min-w-[200px]">
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 transition-colors min-w-[220px]">
       {/* Week label */}
       <p className="font-semibold text-gray-900 dark:text-white mb-3">
         {formatFullWeekLabel(data.week_start_date)}
       </p>
 
-      {/* Trend (Moving Average) - Primary metric */}
+      {/* Defect Rate */}
       <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">4-Week Average:</span>
-          <span className="font-bold text-xl text-emerald-600 dark:text-emerald-400">
-            {(data.movingAverage ?? data.rework_ratio).toFixed(1)}%
-          </span>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-          Moving average smooths weekly fluctuations
-        </p>
-      </div>
-
-      {/* Weekly Defect Rate - Secondary */}
-      <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Weekly Rate:</span>
-          <span className="font-semibold text-blue-400 dark:text-blue-300">
-            {data.rework_ratio.toFixed(1)}%
+          <span className="text-gray-600 dark:text-gray-400">Defect Rate:</span>
+          <span className={`font-bold text-lg ${
+            defectRate <= 25 ? 'text-emerald-600 dark:text-emerald-400' :
+            defectRate <= 50 ? 'text-blue-600 dark:text-blue-400' :
+            defectRate <= 75 ? 'text-amber-600 dark:text-amber-400' :
+            'text-red-600 dark:text-red-400'
+          }`}>
+            {defectRate}%
           </span>
         </div>
       </div>
@@ -184,21 +162,33 @@ function CustomTooltip(props: TooltipProps<number, string>) {
       {/* Points breakdown */}
       <div className="space-y-2 text-sm">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Rework:</span>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500 rounded"></div>
+            <span className="text-gray-600 dark:text-gray-400">Delivered:</span>
+          </div>
           <span className="font-medium text-gray-900 dark:text-white">
-            {data.rework_points} pts
-            <span className="text-gray-500 dark:text-gray-400 ml-1">
-              ({data.bugs_count} {data.bugs_count === 1 ? 'bug' : 'bugs'})
+            {data.delivered_points} pts
+            <span className="text-gray-500 dark:text-gray-400 ml-1 text-xs">
+              ({data.stories_count} {data.stories_count === 1 ? 'item' : 'items'})
             </span>
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Delivered:</span>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded"></div>
+            <span className="text-gray-600 dark:text-gray-400">Rework:</span>
+          </div>
           <span className="font-medium text-gray-900 dark:text-white">
-            {data.delivered_points} pts
-            <span className="text-gray-500 dark:text-gray-400 ml-1">
-              ({data.stories_count} {data.stories_count === 1 ? 'item' : 'items'})
+            {data.rework_points} pts
+            <span className="text-gray-500 dark:text-gray-400 ml-1 text-xs">
+              ({data.bugs_count} {data.bugs_count === 1 ? 'bug' : 'bugs'})
             </span>
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+          <span className="text-gray-600 dark:text-gray-400 font-medium">Total:</span>
+          <span className="font-semibold text-gray-900 dark:text-white">
+            {data.total_points} pts
           </span>
         </div>
       </div>
@@ -207,31 +197,46 @@ function CustomTooltip(props: TooltipProps<number, string>) {
 }
 
 /**
+ * Determine overall trend based on recent vs older defect rates
+ */
+function getTrendDirection(data: ChartDataPoint[]): { direction: 'improving' | 'stable' | 'degrading'; change: number } {
+  if (data.length < 4) return { direction: 'stable', change: 0 };
+
+  // Calculate average defect rate for recent 4 weeks vs older 4 weeks
+  const calcAvgRate = (slice: ChartDataPoint[]) => {
+    const totalDelivered = slice.reduce((acc, p) => acc + p.delivered_points, 0);
+    const totalRework = slice.reduce((acc, p) => acc + p.rework_points, 0);
+    return totalDelivered > 0 ? (totalRework / totalDelivered) * 100 : 0;
+  };
+
+  const recentRate = calcAvgRate(data.slice(-4));
+  const olderRate = calcAvgRate(data.slice(0, Math.min(4, data.length - 4)));
+
+  const change = Math.round((recentRate - olderRate) * 10) / 10;
+
+  if (change < -10) return { direction: 'improving', change };
+  if (change > 10) return { direction: 'degrading', change };
+  return { direction: 'stable', change };
+}
+
+/**
  * ReworkTrendChart Component
  *
- * Displays a line chart showing the rework ratio trend over time.
- * Features:
- * - Time range selector (1 month, 3 months, 6 months)
- * - Interactive line chart with tooltips
- * - Responsive container that adapts to parent width
- * - Dark/light theme support
- * - Fetches data from backend API
- * - Loading and error states
- *
- * @param boardId - The ID of the selected Jira board
- * @param className - Optional additional CSS classes
+ * Displays a stacked bar chart showing work breakdown over time.
+ * Blue bars = Delivered (features), Red bars = Rework (bug fixes)
  */
 export default function ReworkTrendChart({
   boardId,
+  timeRange,
   className = '',
 }: ReworkTrendChartProps) {
-  const [selectedRange, setSelectedRange] = useState<TrendTimeRange>(3);
+  const months = daysToMonths(timeRange);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Fetch trend data when boardId, selectedRange, or retryCount changes
+  // Fetch trend data when boardId, months, or retryCount changes
   useEffect(() => {
     let isMounted = true;
 
@@ -240,24 +245,22 @@ export default function ReworkTrendChart({
       setError(null);
 
       try {
-        const response = await getReworkTrend(boardId, selectedRange);
+        const response = await getReworkTrend(boardId, months);
 
         if (!isMounted) return;
 
-        // Format data for chart with week labels
+        // Format data for chart with week labels and total points
         const formatted: ChartDataPoint[] = response.weeks.map((item) => ({
           ...item,
           weekLabel: formatWeekLabel(item.week_start_date),
+          total_points: item.delivered_points + item.rework_points,
         }));
 
-        // Calculate 4-week moving average for trend line
-        const withMovingAverage = calculateMovingAverage(formatted);
-
-        setChartData(withMovingAverage);
+        setChartData(formatted);
       } catch (err) {
         if (!isMounted) return;
 
-        setError('Failed to load rework trend data');
+        setError('Failed to load trend data');
         console.error('Error fetching rework trend:', err);
       } finally {
         if (isMounted) {
@@ -271,7 +274,7 @@ export default function ReworkTrendChart({
     return () => {
       isMounted = false;
     };
-  }, [boardId, selectedRange, retryCount]);
+  }, [boardId, months, retryCount]);
 
   // Retry function to refetch data
   const handleRetry = () => {
@@ -282,13 +285,13 @@ export default function ReworkTrendChart({
     <div
       className={`p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 transition-colors ${className}`}
       role="region"
-      aria-label="Defect Rate Trend"
+      aria-label="Work Breakdown Trend"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Defect Rate Trend
+            Work Breakdown
           </h2>
           <InfoTooltip />
           {/* Trend Direction Indicator */}
@@ -299,26 +302,29 @@ export default function ReworkTrendChart({
                 bg: 'bg-emerald-100 dark:bg-emerald-900/30',
                 text: 'text-emerald-700 dark:text-emerald-400',
                 icon: '↓',
-                label: 'Improving',
+                label: 'Less bugs',
+                tooltip: 'Defect rate is decreasing compared to earlier weeks',
               },
               stable: {
                 bg: 'bg-gray-100 dark:bg-gray-700',
                 text: 'text-gray-700 dark:text-gray-300',
                 icon: '→',
                 label: 'Stable',
+                tooltip: 'Defect rate is consistent with earlier weeks',
               },
               degrading: {
                 bg: 'bg-red-100 dark:bg-red-900/30',
                 text: 'text-red-700 dark:text-red-400',
                 icon: '↑',
-                label: 'Needs Attention',
+                label: 'More bugs',
+                tooltip: 'Defect rate is increasing compared to earlier weeks',
               },
             };
             const config = trendConfig[trend.direction];
             return (
               <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text} flex items-center gap-1`}
-                title={`Change: ${trend.change > 0 ? '+' : ''}${trend.change}%`}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text} flex items-center gap-1 cursor-help`}
+                title={config.tooltip}
               >
                 <span className="font-bold">{config.icon}</span>
                 {config.label}
@@ -327,38 +333,13 @@ export default function ReworkTrendChart({
           })()}
         </div>
 
-        {/* Time Range Selector */}
-        <div className="flex gap-2">
-          {([1, 3, 6] as TrendTimeRange[]).map((months) => (
-            <button
-              key={months}
-              type="button"
-              onClick={() => setSelectedRange(months)}
-              aria-pressed={selectedRange === months}
-              disabled={loading}
-              className={`
-                px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                dark:focus:ring-offset-gray-800
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${
-                  selectedRange === months
-                    ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-md'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }
-              `}
-            >
-              {months === 1 ? '1m' : months === 3 ? '3m' : '6m'}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Loading State */}
       {loading && (
         <div className="animate-pulse skeleton-shimmer">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
-          <div className="h-[400px] bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-[350px] bg-gray-200 dark:bg-gray-700 rounded"></div>
         </div>
       )}
 
@@ -398,66 +379,70 @@ export default function ReworkTrendChart({
 
       {/* Chart Container */}
       {!loading && !error && chartData.length > 0 && (
-        <div className="w-full h-[400px]">
+        <div className="w-full h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
+            <BarChart
               data={chartData}
               margin={{ top: 10, right: 30, left: 0, bottom: 10 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
                 className="stroke-gray-200 dark:stroke-gray-700"
+                vertical={false}
               />
               <XAxis
                 dataKey="weekLabel"
-                tick={{ fill: 'currentColor' }}
+                tick={{ fill: 'currentColor', fontSize: 12 }}
                 className="text-gray-600 dark:text-gray-400"
                 tickLine={false}
+                axisLine={false}
               />
               <YAxis
-                tick={{ fill: 'currentColor' }}
+                tick={{ fill: 'currentColor', fontSize: 12 }}
                 className="text-gray-600 dark:text-gray-400"
                 tickLine={false}
-                tickFormatter={(value) => `${value}%`}
+                axisLine={false}
+                tickFormatter={(value) => `${value}`}
+                label={{
+                  value: 'Story Points',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { textAnchor: 'middle', fill: '#9ca3af', fontSize: 12 }
+                }}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
               <Legend
                 wrapperStyle={{ paddingTop: '20px' }}
                 formatter={(value: string) => (
                   <span className="text-gray-700 dark:text-gray-300">{value}</span>
                 )}
               />
-              {/* Weekly data - lighter, dashed line */}
-              <Line
-                type="monotone"
-                dataKey="rework_ratio"
-                name="Weekly Rate"
-                stroke="#93c5fd"
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                dot={{ fill: '#93c5fd', r: 3 }}
-                activeDot={{ r: 5, fill: '#3b82f6' }}
+              {/* Delivered - Blue (bottom of stack) */}
+              <Bar
+                dataKey="delivered_points"
+                name="Delivered"
+                stackId="work"
+                fill="#3b82f6"
+                radius={[0, 0, 0, 0]}
               />
-              {/* 4-week moving average - prominent solid line */}
-              <Line
-                type="monotone"
-                dataKey="movingAverage"
-                name="4-Week Average"
-                stroke="#10b981"
-                strokeWidth={3}
-                dot={{ fill: '#10b981', r: 4 }}
-                activeDot={{ r: 6, fill: '#059669' }}
+              {/* Rework - Red (top of stack) */}
+              <Bar
+                dataKey="rework_points"
+                name="Rework"
+                stackId="work"
+                fill="#ef4444"
+                radius={[4, 4, 0, 0]}
               />
-            </LineChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {/* Empty State */}
       {!loading && !error && chartData.length === 0 && (
-        <div className="w-full h-[400px] flex items-center justify-center">
+        <div className="w-full h-[350px] flex items-center justify-center">
           <div className="text-center text-gray-500 dark:text-gray-400">
-            <p className="font-semibold">No trend data available</p>
+            <p className="font-semibold">No data available</p>
             <p className="text-sm mt-2">Try selecting a different time range</p>
           </div>
         </div>

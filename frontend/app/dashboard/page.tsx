@@ -215,7 +215,7 @@ export default function Dashboard() {
             />
 
             {/* Rework Trend Chart */}
-            <ReworkTrendChart boardId={selectedBoard.id} />
+            <ReworkTrendChart boardId={selectedBoard.id} timeRange={timeRange} />
 
             {/* Context Metrics Grid */}
             <ContextWidgetsGrid

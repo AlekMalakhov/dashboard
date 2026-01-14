@@ -12,7 +12,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const MOCK_BOARDS = {
   boards: [
-    { id: 1, name: 'Sprint Board' },
+    { id: 1, name: 'ImaGenAItion Labs' }, // This name is auto-selected by the dashboard
     { id: 2, name: 'Kanban Board' },
     { id: 3, name: 'Team Board' },
   ],
@@ -190,114 +190,55 @@ async function mockTrendAPIWithError(
 }
 
 test.describe('Rework Ratio Trend Chart', () => {
-  test('should display chart container after board selection', async ({ page }) => {
-    // Mock API responses
+  test('should display chart container when dashboard loads', async ({ page }) => {
+    // Mock API responses (board is auto-selected, so use the default board ID)
     await mockBoardsAPI(page);
-    await mockReworkMetricsAPI(page, 1, 84);
+    await mockReworkMetricsAPI(page, 1, 90); // Default is 90 days
     await mockTrendAPI(page, 1, 3, MOCK_TREND_DATA_3M);
 
     // Navigate to dashboard
     await page.goto('/dashboard');
 
-    // Wait for page to render
+    // Wait for page to render and metrics to load (board is auto-selected)
     await expect(page.getByRole('heading', { name: 'Rework Dashboard' })).toBeVisible();
-
-    // Select a board
-    const boardSelector = page.locator('#board-search');
-    await boardSelector.click();
-    await page.getByRole('option', { name: 'Sprint Board' }).click();
-
-    // Wait for metrics to load
-    await expect(page.getByRole('status', { name: /rework ratio: 12 percent/i })).toBeVisible();
+    await expect(page.getByRole('status', { name: /defect rate: 12 percent/i })).toBeVisible();
 
     // Verify trend chart section is visible
-    await expect(page.getByRole('region', { name: /rework ratio trend/i })).toBeVisible();
+    await expect(page.getByRole('region', { name: /work breakdown trend/i })).toBeVisible();
 
     // Verify chart heading is visible
-    await expect(page.getByRole('heading', { name: /rework ratio trend/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /work breakdown/i })).toBeVisible();
   });
 
-  test('should display time range selector with 1m/3m/6m options and 3m default', async ({ page }) => {
-    // Mock API responses
-    await mockBoardsAPI(page);
-    await mockReworkMetricsAPI(page, 1, 84);
-    await mockTrendAPI(page, 1, 3, MOCK_TREND_DATA_3M);
-
-    // Navigate to dashboard
-    await page.goto('/dashboard');
-
-    // Wait for page to render
-    await expect(page.getByRole('heading', { name: 'Rework Dashboard' })).toBeVisible();
-
-    // Select a board
-    const boardSelector = page.locator('#board-search');
-    await boardSelector.click();
-    await page.getByRole('option', { name: 'Sprint Board' }).click();
-
-    // Wait for trend chart to be visible
-    await expect(page.getByRole('region', { name: /rework ratio trend/i })).toBeVisible();
-
-    // Verify time range buttons exist
-    const oneMonthButton = page.getByRole('button', { name: '1m' });
-    const threeMonthsButton = page.getByRole('button', { name: '3m' });
-    const sixMonthsButton = page.getByRole('button', { name: '6m' });
-
-    await expect(oneMonthButton).toBeVisible();
-    await expect(threeMonthsButton).toBeVisible();
-    await expect(sixMonthsButton).toBeVisible();
-
-    // Verify 3 months is selected by default
-    await expect(threeMonthsButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(oneMonthButton).toHaveAttribute('aria-pressed', 'false');
-    await expect(sixMonthsButton).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  test('should trigger data reload when switching time range', async ({ page }) => {
+  test('should update chart when global time range is changed', async ({ page }) => {
     // Mock API responses for different time ranges
     await mockBoardsAPI(page);
-    await mockReworkMetricsAPI(page, 1, 84);
-    await mockTrendAPI(page, 1, 3, MOCK_TREND_DATA_3M);
-    await mockTrendAPI(page, 1, 1, MOCK_TREND_DATA_1M);
-    await mockTrendAPI(page, 1, 6, MOCK_TREND_DATA_6M);
+    await mockReworkMetricsAPI(page, 1, 90); // Default 90 days
+    await mockReworkMetricsAPI(page, 1, 60);
+    await mockTrendAPI(page, 1, 3, MOCK_TREND_DATA_3M); // 90 days = 3 months
+    await mockTrendAPI(page, 1, 2, MOCK_TREND_DATA_3M); // 60 days = 2 months
 
     // Navigate to dashboard
     await page.goto('/dashboard');
 
-    // Wait for page to render
+    // Wait for page to render (board is auto-selected)
     await expect(page.getByRole('heading', { name: 'Rework Dashboard' })).toBeVisible();
+    await expect(page.getByRole('status', { name: /defect rate: 12 percent/i })).toBeVisible();
 
-    // Select a board
-    const boardSelector = page.locator('#board-search');
-    await boardSelector.click();
-    await page.getByRole('option', { name: 'Sprint Board' }).click();
+    // Wait for trend chart to be visible
+    await expect(page.getByRole('region', { name: /work breakdown trend/i })).toBeVisible();
 
-    // Wait for trend chart to be visible with 3m data (default)
-    await expect(page.getByRole('region', { name: /rework ratio trend/i })).toBeVisible();
-    const threeMonthsButton = page.getByRole('button', { name: '3m' });
-    await expect(threeMonthsButton).toHaveAttribute('aria-pressed', 'true');
+    // Switch to 60d using the global time range selector
+    await page.getByRole('button', { name: '60d' }).click();
 
-    // Switch to 1 month and verify button state changes
-    const oneMonthButton = page.getByRole('button', { name: '1m' });
-    await oneMonthButton.click();
-    await expect(oneMonthButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(threeMonthsButton).toHaveAttribute('aria-pressed', 'false');
-
-    // Switch to 6 months and verify button state changes
-    const sixMonthsButton = page.getByRole('button', { name: '6m' });
-    await sixMonthsButton.click();
-    await expect(sixMonthsButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(oneMonthButton).toHaveAttribute('aria-pressed', 'false');
-
-    // Switch back to 3 months and verify button state changes
-    await threeMonthsButton.click();
-    await expect(threeMonthsButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(sixMonthsButton).toHaveAttribute('aria-pressed', 'false');
+    // Verify the chart is still visible (it updates with new time range)
+    await expect(page.getByRole('region', { name: /work breakdown trend/i })).toBeVisible();
   });
 
   test('should display loading skeleton during data fetch', async ({ page }) => {
     // Mock API responses with delay for trend API
     await mockBoardsAPI(page);
-    await mockReworkMetricsAPI(page, 1, 84);
+    await mockReworkMetricsAPI(page, 1, 90);
     await mockTrendAPIWithDelay(page, 1, 3, 1000);
 
     // Navigate to dashboard
@@ -306,17 +247,11 @@ test.describe('Rework Ratio Trend Chart', () => {
     // Wait for page to render
     await expect(page.getByRole('heading', { name: 'Rework Dashboard' })).toBeVisible();
 
-    // Select a board
-    const boardSelector = page.locator('#board-search');
-    await boardSelector.click();
-    await page.getByRole('option', { name: 'Sprint Board' }).click();
-
-    // Wait for trend chart section to be visible
-    await expect(page.getByRole('region', { name: /rework ratio trend/i })).toBeVisible();
+    // Wait for trend chart section to be visible (board is auto-selected)
+    await expect(page.getByRole('region', { name: /work breakdown trend/i })).toBeVisible();
 
     // Verify loading skeleton is displayed
-    // The skeleton should be within the trend chart region
-    const trendChartRegion = page.getByRole('region', { name: /rework ratio trend/i });
+    const trendChartRegion = page.getByRole('region', { name: /work breakdown trend/i });
     await expect(trendChartRegion.locator('.skeleton-shimmer').first()).toBeVisible();
 
     // Wait for chart to load (skeleton should disappear)
@@ -326,27 +261,21 @@ test.describe('Rework Ratio Trend Chart', () => {
   test('should display error state with retry button on API failure', async ({ page }) => {
     // Mock API responses with error for trend API
     await mockBoardsAPI(page);
-    await mockReworkMetricsAPI(page, 1, 84);
+    await mockReworkMetricsAPI(page, 1, 90);
     await mockTrendAPIWithError(page, 1, 3);
 
     // Navigate to dashboard
     await page.goto('/dashboard');
 
-    // Wait for page to render
+    // Wait for page to render (board is auto-selected)
     await expect(page.getByRole('heading', { name: 'Rework Dashboard' })).toBeVisible();
 
-    // Select a board
-    const boardSelector = page.locator('#board-search');
-    await boardSelector.click();
-    await page.getByRole('option', { name: 'Sprint Board' }).click();
-
     // Wait for trend chart section to be visible
-    await expect(page.getByRole('region', { name: /rework ratio trend/i })).toBeVisible();
+    await expect(page.getByRole('region', { name: /work breakdown trend/i })).toBeVisible();
 
     // Verify error message is displayed
-    const trendChartRegion = page.getByRole('region', { name: /rework ratio trend/i });
+    const trendChartRegion = page.getByRole('region', { name: /work breakdown trend/i });
     await expect(trendChartRegion.getByText(/unable to load trend data/i)).toBeVisible({ timeout: 3000 });
-    await expect(trendChartRegion.getByText(/failed to load rework trend data/i)).toBeVisible();
 
     // Verify retry button is present
     const retryButton = trendChartRegion.getByRole('button', { name: /retry/i });
@@ -366,25 +295,21 @@ test.describe('Rework Ratio Trend Chart', () => {
   test('should display tooltip on chart hover', async ({ page }) => {
     // Mock API responses
     await mockBoardsAPI(page);
-    await mockReworkMetricsAPI(page, 1, 84);
+    await mockReworkMetricsAPI(page, 1, 90);
     await mockTrendAPI(page, 1, 3, MOCK_TREND_DATA_3M);
 
     // Navigate to dashboard
     await page.goto('/dashboard');
 
-    // Wait for page to render
+    // Wait for page to render (board is auto-selected)
     await expect(page.getByRole('heading', { name: 'Rework Dashboard' })).toBeVisible();
-
-    // Select a board
-    const boardSelector = page.locator('#board-search');
-    await boardSelector.click();
-    await page.getByRole('option', { name: 'Sprint Board' }).click();
+    await expect(page.getByRole('status', { name: /defect rate: 12 percent/i })).toBeVisible();
 
     // Wait for trend chart to be visible and fully loaded
-    await expect(page.getByRole('region', { name: /rework ratio trend/i })).toBeVisible();
+    await expect(page.getByRole('region', { name: /work breakdown trend/i })).toBeVisible();
 
     // Wait for the chart to finish loading (skeleton disappears)
-    const trendChartRegion = page.getByRole('region', { name: /rework ratio trend/i });
+    const trendChartRegion = page.getByRole('region', { name: /work breakdown trend/i });
     await expect(trendChartRegion.locator('.skeleton-shimmer')).not.toBeVisible({ timeout: 3000 });
 
     // Hover over a chart element (Recharts typically uses SVG)
