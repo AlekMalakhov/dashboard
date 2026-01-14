@@ -1,11 +1,10 @@
 'use client';
 
 import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { type TimeRange } from '@/lib/api';
 
-/**
- * Valid time range options
- */
-export type TimeRange = 30 | 60 | 84 | 90;
+// Re-export TimeRange for backwards compatibility
+export type { TimeRange };
 
 /**
  * Props for the TimeRangeSelector component
@@ -19,7 +18,7 @@ const ranges: Array<{ value: TimeRange; label: string }> = [
   { value: 30, label: '30d' },
   { value: 60, label: '60d' },
   { value: 90, label: '90d' },
-  { value: 84, label: '12w' },
+  { value: 180, label: '180d' },
 ];
 
 /**
