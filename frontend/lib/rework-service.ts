@@ -395,10 +395,19 @@ export async function getReworkTrend(
   const storyPointsFieldId = await detectStoryPointsField();
 
   // Step 3: Calculate date range
-  const days = months * 30;
+  let days = months * 30;
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+
+  // Align startDate to Monday of that week for complete week data
+  // This ensures displayed weeks have all their data fetched
+  const dayOfWeek = startDate.getUTCDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  startDate.setUTCDate(startDate.getUTCDate() - daysSinceMonday);
+  // Recalculate days to include the full start week
+  // Add 1 day to account for time-of-day precision in Jira's relative date queries
+  days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
   // Step 4: Fetch all bugs and stories in parallel
   const [bugs, stories] = await Promise.all([
