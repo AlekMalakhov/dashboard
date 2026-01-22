@@ -68,9 +68,17 @@ export async function getBoards(): Promise<BoardsResponse> {
 }
 
 /**
- * Valid time range options in days
+ * Time range constants for the slider
  */
-export type TimeRange = 30 | 60 | 90 | 180;
+export const TIME_RANGE_MIN = 7;
+export const TIME_RANGE_MAX = 180;
+export const TIME_RANGE_DEFAULT = 90;
+export const TIME_RANGE_PRESETS = [30, 60, 90, 180] as const;
+
+/**
+ * Valid time range in days (any value from 7 to 180)
+ */
+export type TimeRange = number;
 
 /**
  * Fetches rework metrics for a specific board and time range

@@ -3,17 +3,16 @@
 import { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   TooltipProps,
   Legend,
-  Cell,
 } from 'recharts';
-import { getReworkTrend, type TrendTimeRange, type TimeRange, type WeeklyDataPoint } from '@/lib/api';
+import { getReworkTrend, type TrendTimeRange, type WeeklyDataPoint } from '@/lib/api';
 
 /**
  * InfoTooltip Component
@@ -52,7 +51,7 @@ function InfoTooltip() {
         <div className="absolute z-20 left-0 top-full mt-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-lg shadow-xl animate-fade-in">
           <p className="font-semibold mb-2">How to read this chart</p>
           <p className="text-gray-300 mb-3">
-            Each bar shows total Story Points completed that week, split by type:
+            Each line shows Story Points completed per week:
           </p>
           <div className="space-y-2 mb-3">
             <div className="flex items-center gap-2">
@@ -75,15 +74,14 @@ function InfoTooltip() {
 }
 
 /**
- * Convert days to months for the trend API
+ * Convert arbitrary days to nearest valid months for the trend API
+ * Maps: 7-45 days -> 1 month, 46-75 days -> 2 months, 76-135 days -> 3 months, 136-180 days -> 6 months
  */
-function daysToMonths(days: TimeRange): TrendTimeRange {
-  switch (days) {
-    case 30: return 1;
-    case 60: return 2;
-    case 90: return 3;
-    case 180: return 6;
-  }
+function daysToMonths(days: number): TrendTimeRange {
+  if (days <= 45) return 1;
+  if (days <= 75) return 2;
+  if (days <= 135) return 3;
+  return 6;
 }
 
 /**
@@ -91,7 +89,7 @@ function daysToMonths(days: TimeRange): TrendTimeRange {
  */
 export interface ReworkTrendChartProps {
   boardId: number;
-  timeRange: TimeRange;
+  timeRange: number;
   className?: string;
 }
 
@@ -222,8 +220,8 @@ function getTrendDirection(data: ChartDataPoint[]): { direction: 'improving' | '
 /**
  * ReworkTrendChart Component
  *
- * Displays a stacked bar chart showing work breakdown over time.
- * Blue bars = Delivered (features), Red bars = Rework (bug fixes)
+ * Displays a dual line chart showing work breakdown over time.
+ * Blue line = Delivered (features), Red line = Rework (bug fixes)
  */
 export default function ReworkTrendChart({
   boardId,
@@ -381,7 +379,7 @@ export default function ReworkTrendChart({
       {!loading && !error && chartData.length > 0 && (
         <div className="w-full h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
+            <LineChart
               data={chartData}
               margin={{ top: 10, right: 30, left: 0, bottom: 10 }}
             >
@@ -410,30 +408,34 @@ export default function ReworkTrendChart({
                   style: { textAnchor: 'middle', fill: '#9ca3af', fontSize: 12 }
                 }}
               />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend
                 wrapperStyle={{ paddingTop: '20px' }}
                 formatter={(value: string) => (
                   <span className="text-gray-700 dark:text-gray-300">{value}</span>
                 )}
               />
-              {/* Delivered - Blue (bottom of stack) */}
-              <Bar
+              {/* Delivered - Blue line */}
+              <Line
+                type="monotone"
                 dataKey="delivered_points"
                 name="Delivered"
-                stackId="work"
-                fill="#3b82f6"
-                radius={[0, 0, 0, 0]}
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
               />
-              {/* Rework - Red (top of stack) */}
-              <Bar
+              {/* Rework - Red line */}
+              <Line
+                type="monotone"
                 dataKey="rework_points"
                 name="Rework"
-                stackId="work"
-                fill="#ef4444"
-                radius={[4, 4, 0, 0]}
+                stroke="#ef4444"
+                strokeWidth={2}
+                dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, stroke: '#ef4444', strokeWidth: 2 }}
               />
-            </BarChart>
+            </LineChart>
           </ResponsiveContainer>
         </div>
       )}

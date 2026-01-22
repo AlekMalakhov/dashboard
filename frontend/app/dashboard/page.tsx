@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   getBoards,
   getReworkMetrics,
+  TIME_RANGE_DEFAULT,
   type Board,
   type ReworkMetrics,
-  type TimeRange,
 } from '@/lib/api';
 import TimeRangeSelector from '@/components/time-range-selector';
 import ReworkRatioCard from '@/components/rework-ratio-card';
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>(90);
+  const [timeRange, setTimeRange] = useState<number>(TIME_RANGE_DEFAULT);
   const [metrics, setMetrics] = useState<ReworkMetrics | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export default function Dashboard() {
   };
 
   // Handle time range change
-  const handleTimeRangeChange = (range: TimeRange) => {
+  const handleTimeRangeChange = (range: number) => {
     setTimeRange(range);
   };
 
