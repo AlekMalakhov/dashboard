@@ -24,11 +24,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate days (default to 30)
-    const days = daysParam ? parseInt(daysParam, 10) : 30;
-    if (![30, 60, 90, 180].includes(days)) {
+    // Validate days (default to 90, allow 7-180)
+    const days = daysParam ? parseInt(daysParam, 10) : 90;
+    if (isNaN(days) || days < 7 || days > 180) {
       return NextResponse.json(
-        { error: 'days parameter must be one of: 30, 60, 90, 180' },
+        { error: 'days parameter must be between 7 and 180' },
         { status: 400 }
       );
     }
