@@ -132,24 +132,19 @@ export interface ReworkTrendResponse {
 }
 
 /**
- * Valid time range options in months for trend data
- */
-export type TrendTimeRange = 1 | 2 | 3 | 6;
-
-/**
  * Fetches rework trend data for a specific board and time range
  *
  * @param boardId - The ID of the board to fetch trend data for
- * @param months - The time range in months (1, 3, or 6)
+ * @param days - The time range in days (7-180)
  * @returns Promise<ReworkTrendResponse> The rework trend data
  * @throws Error if the request fails
  */
 export async function getReworkTrend(
   boardId: number,
-  months: TrendTimeRange = 3
+  days: number = 90
 ): Promise<ReworkTrendResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/api/rework/trend?board_id=${boardId}&months=${months}`,
+    `${API_BASE_URL}/api/rework/trend?board_id=${boardId}&days=${days}`,
     {
       method: 'GET',
       headers: {

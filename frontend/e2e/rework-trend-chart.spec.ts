@@ -42,8 +42,8 @@ test.describe('Rework Ratio Trend Chart', () => {
       await mockBoardsApi(page);
       await mockReworkMetricsApi(page, createReworkMetrics(), { days: 90 });
       await mockReworkMetricsApi(page, createReworkMetrics(), { days: 60 });
-      await mockTrendApi(page, TREND_DATA_3M, { months: 3 });
-      await mockTrendApi(page, TREND_DATA_3M, { months: 2 });
+      await mockTrendApi(page, TREND_DATA_3M, { days: 90 });
+      await mockTrendApi(page, TREND_DATA_3M, { days: 60 });
 
       await dashboardPage.goto();
       await dashboardPage.waitForReady();

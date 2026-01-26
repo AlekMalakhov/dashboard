@@ -509,19 +509,19 @@ class ReworkService:
     async def get_rework_trend(
         self,
         board_id: int,
-        months: int,
+        days: int,
     ) -> ReworkTrendResponse:
         """
         Calculate weekly rework ratio trend for a Jira board.
 
         Args:
             board_id: Jira board ID to analyze
-            months: Number of months to look back (1, 3, or 6)
+            days: Number of days to look back (7-180)
 
         Returns:
             ReworkTrendResponse: Weekly trend data with metrics
         """
-        logger.info(f"Calculating rework trend for board {board_id}, months {months}")
+        logger.info(f"Calculating rework trend for board {board_id}, days {days}")
 
         # Step 1: Get project key for the board
         project_key = await self._get_board_project_key(board_id)
@@ -535,7 +535,6 @@ class ReworkService:
         story_points_field_id = await self._detect_story_points_field()
 
         # Step 3: Calculate date range
-        days = months * 30
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
 
@@ -545,14 +544,14 @@ class ReworkService:
         start_date = start_date - timedelta(days=days_since_monday)
         # Recalculate days to include the full start week
         # Add 1 day to account for time-of-day precision in Jira's relative date queries
-        days = (end_date - start_date).days + 1
+        fetch_days = (end_date - start_date).days + 1
 
         logger.info(f"Fetching data from {start_date.date()} to {end_date.date()}")
 
         # Step 4: Fetch all bugs and stories in parallel
         bugs, stories = await asyncio.gather(
-            self._fetch_bugs(project_key, days, story_points_field_id),
-            self._fetch_completed_stories(project_key, days, story_points_field_id),
+            self._fetch_bugs(project_key, fetch_days, story_points_field_id),
+            self._fetch_completed_stories(project_key, fetch_days, story_points_field_id),
         )
         logger.info(f"Found {len(bugs)} bugs and {len(stories)} completed stories")
 

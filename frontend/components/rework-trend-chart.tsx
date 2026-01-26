@@ -12,7 +12,7 @@ import {
   TooltipProps,
   Legend,
 } from 'recharts';
-import { getReworkTrend, type TrendTimeRange, type WeeklyDataPoint } from '@/lib/api';
+import { getReworkTrend, type WeeklyDataPoint } from '@/lib/api';
 
 /**
  * InfoTooltip Component
@@ -73,16 +73,6 @@ function InfoTooltip() {
   );
 }
 
-/**
- * Convert arbitrary days to nearest valid months for the trend API
- * Maps: 7-45 days -> 1 month, 46-75 days -> 2 months, 76-135 days -> 3 months, 136-180 days -> 6 months
- */
-function daysToMonths(days: number): TrendTimeRange {
-  if (days <= 45) return 1;
-  if (days <= 75) return 2;
-  if (days <= 135) return 3;
-  return 6;
-}
 
 /**
  * Props for the ReworkTrendChart component
@@ -228,13 +218,12 @@ export default function ReworkTrendChart({
   timeRange,
   className = '',
 }: ReworkTrendChartProps) {
-  const months = daysToMonths(timeRange);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Fetch trend data when boardId, months, or retryCount changes
+  // Fetch trend data when boardId, timeRange, or retryCount changes
   useEffect(() => {
     let isMounted = true;
 
@@ -243,7 +232,7 @@ export default function ReworkTrendChart({
       setError(null);
 
       try {
-        const response = await getReworkTrend(boardId, months);
+        const response = await getReworkTrend(boardId, timeRange);
 
         if (!isMounted) return;
 
@@ -272,7 +261,7 @@ export default function ReworkTrendChart({
     return () => {
       isMounted = false;
     };
-  }, [boardId, months, retryCount]);
+  }, [boardId, timeRange, retryCount]);
 
   // Retry function to refetch data
   const handleRetry = () => {

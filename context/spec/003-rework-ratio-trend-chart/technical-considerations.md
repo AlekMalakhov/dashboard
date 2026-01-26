@@ -58,13 +58,13 @@ class ReworkTrendResponse(BaseModel):
 @router.get("/rework/trend", response_model=ReworkTrendResponse)
 async def get_rework_trend(
     board_id: Annotated[int, Query(gt=0)],
-    months: Annotated[int, Query()] = 3,  # 1, 3, or 6
+    days: Annotated[int, Query(ge=7, le=180)] = 90,
 ) -> ReworkTrendResponse:
     """Get weekly rework ratio trend for specified time range."""
 ```
 
 **Validation:**
-- `months` must be 1, 3, or 6 (return 400 if invalid)
+- `days` must be between 7 and 180 (consistent with main rework API)
 - `board_id` must be positive integer
 - User must be authenticated (existing auth middleware)
 
@@ -75,7 +75,7 @@ async def get_rework_trend(
 New method `get_rework_trend()` in `ReworkService`:
 
 **Algorithm:**
-1. Calculate date range: `start_date = today - (months * 30 days)`
+1. Calculate date range: `start_date = today - days`
 2. Fetch ALL bugs resolved in range (reuse `_fetch_bugs()` with modified JQL)
 3. Fetch ALL completed stories in range (reuse `_fetch_completed_stories()`)
 4. Group issues by week using `resolved` date field
@@ -130,7 +130,7 @@ interface ReworkTrendResponse {
 
 export async function getReworkTrend(
   boardId: number,
-  months: number = 3
+  days: number = 90
 ): Promise<ReworkTrendResponse>
 ```
 
@@ -141,8 +141,7 @@ export async function getReworkTrend(
 **Structure:**
 ```
 <ReworkTrendChart>
-  ├── Header: "Rework Ratio Trend"
-  ├── Time Range Selector: [1 month] [3 months] [6 months]
+  ├── Header: "Work Breakdown"
   ├── Chart Container:
   │   ├── Loading: Skeleton shimmer
   │   ├── Error: Message + Retry button
@@ -150,6 +149,11 @@ export async function getReworkTrend(
   └── Warning Banner (if items_excluded > 0)
 </ReworkTrendChart>
 ```
+
+**Props:**
+- `boardId: number` - Jira board ID
+- `timeRange: number` - Time range in days (7-180), passed from parent dashboard
+- `className?: string` - Optional CSS class
 
 **Recharts Configuration:**
 - `ResponsiveContainer` for auto-sizing
@@ -182,9 +186,9 @@ Insert `ReworkTrendChart` between `ReworkRatioCard` and `ContextWidgetsGrid`:
 ```
 
 **State Management:**
-- The chart manages its own time range state internally
-- Fetches data when `boardId` changes or time range changes
-- Independent of the existing 30d/60d/90d selector
+- The chart uses the same time range as the main dashboard (passed via `timeRange` prop)
+- Fetches data when `boardId` or `timeRange` changes
+- Shares time range with the rework ratio card for consistent data display
 
 ---
 

@@ -210,7 +210,10 @@ test.describe('Rework Dashboard', () => {
   });
 
   test.describe('Week Data Consistency', () => {
-    test('shows consistent week data across different time ranges', async ({ page, dashboardPage }) => {
+    test('shows consistent week data across different time ranges', async ({ page, dashboardPage, browserName }, testInfo) => {
+      // Skip on mobile - hover interactions don't work on touch devices
+      test.skip(testInfo.project.name.includes('mobile'), 'Hover tests not supported on mobile');
+
       // This test verifies the fix for the bug where the same week showed
       // different defect rates depending on the time range selected.
 
@@ -240,8 +243,8 @@ test.describe('Rework Dashboard', () => {
       await mockBoardsApi(page);
       await mockReworkMetricsApi(page, createReworkMetrics(), { days: 90 });
       await mockReworkMetricsApi(page, createReworkMetrics(), { days: 180 });
-      await mockTrendApi(page, trend90d, { months: 3 });
-      await mockTrendApi(page, trend180d, { months: 6 });
+      await mockTrendApi(page, trend90d, { days: 90 });
+      await mockTrendApi(page, trend180d, { days: 180 });
 
       await dashboardPage.goto();
       await dashboardPage.waitForReady();
