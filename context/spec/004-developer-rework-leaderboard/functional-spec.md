@@ -61,20 +61,15 @@ The dashboard shall display a new section titled "Developer Rework Leaderboard" 
 - [ ] Bug story points are counted against the assignee of the linked parent story, not the bug fixer
 - [ ] Bugs without "is caused by" links are not included in developer metrics
 
-### 2.3 Filtering and Minimum Threshold
+### 2.3 Filtering
 
 **Time Range:**
 - The existing time range selector (30/60/90 days) applies to this section
 - Only stories completed within the selected time range are included
 
-**Minimum Threshold:**
-- Developers with fewer than **3 stories** in the selected time range are **hidden** from the list
-- This prevents misleading ratios from small sample sizes
-
 **Acceptance Criteria:**
 - [ ] Changing the time range selector updates the Developer Leaderboard
-- [ ] Developers with 0, 1, or 2 stories in the time range do not appear in the list
-- [ ] Developers with 3+ stories appear in the list
+- [ ] All developers with at least 1 story in the time range appear in the list
 
 ### 2.4 Sorting
 
@@ -115,7 +110,6 @@ The dashboard shall display a new section titled "Developer Rework Leaderboard" 
 - Attribution based on Assignee field
 - Bug points attributed to original story author
 - Time range filtering (30/60/90 days)
-- Minimum 3-story threshold to appear in list
 - Default sort by highest rework ratio
 - Drill-down to see developer's stories and linked bugs
 - Contextual framing message
@@ -134,5 +128,4 @@ The following are explicitly NOT included in this specification (separate roadma
 - Export to CSV/PDF
 - Comparison between developers over time (trend lines per developer)
 - Team-level grouping (grouping developers by Jira team)
-- Configurable minimum threshold (hardcoded to 3)
 - Alternative sort options (only highest rework first)

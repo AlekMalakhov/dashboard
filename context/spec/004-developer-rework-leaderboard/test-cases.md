@@ -33,37 +33,35 @@ This document outlines the test cases for the Developer Rework Leaderboard featu
 
 | Test ID | Test Name | Description | Input | Expected Output |
 |---------|-----------|-------------|-------|-----------------|
-| BE-010 | `test_min_threshold_filter_3_stories` | Developers with <3 stories excluded | Dev with 2 stories, Dev with 5 stories | Only Dev with 5 stories in response |
-| BE-011 | `test_min_threshold_exactly_3_stories` | Developers with exactly 3 stories included | Dev with 3 stories | Dev included in response |
-| BE-012 | `test_excluded_count_accurate` | `developers_excluded` count is accurate | 2 devs with <3 stories, 3 devs with 3+ | `developers_excluded = 2` |
-| BE-013 | `test_warning_message_generated` | Warning message generated when devs excluded | 2 devs filtered out | `warning = "2 developers hidden (fewer than 3 stories)"` |
-| BE-014 | `test_time_range_filtering` | Only stories within time range included | Stories from 30, 60, 100 days ago, days=90 | Only stories from 30, 60 days ago |
+| BE-010 | `test_time_range_filtering` | Only stories within time range included | Stories from 30, 60, 100 days ago, days=90 | Only stories from 30, 60 days ago |
+| BE-011 | `test_all_developers_with_stories_included` | All developers with at least 1 story included | Dev with 1 story, Dev with 5 stories | Both developers in response |
+| BE-012 | `test_developer_with_single_story` | Developer with exactly 1 story included | Dev with 1 story | Dev included in response with correct metrics |
 
 ### 1.4 Sorting Tests
 
 | Test ID | Test Name | Description | Input | Expected Output |
 |---------|-----------|-------------|-------|-----------------|
-| BE-015 | `test_sorted_by_rework_ratio_descending` | Results sorted by rework ratio descending | Devs with ratios: 10%, 30%, 20% | Order: 30%, 20%, 10% |
-| BE-016 | `test_equal_ratios_stable_sort` | Stable sort when ratios are equal | Devs with same ratio | Consistent ordering (by name or account_id) |
+| BE-013 | `test_sorted_by_rework_ratio_descending` | Results sorted by rework ratio descending | Devs with ratios: 10%, 30%, 20% | Order: 30%, 20%, 10% |
+| BE-014 | `test_equal_ratios_stable_sort` | Stable sort when ratios are equal | Devs with same ratio | Consistent ordering (by name or account_id) |
 
 ### 1.5 Response Structure Tests
 
 | Test ID | Test Name | Description | Input | Expected Output |
 |---------|-----------|-------------|-------|-----------------|
-| BE-017 | `test_response_contains_all_fields` | Response contains all required fields | Valid request | All fields present: account_id, display_name, avatar_url, etc. |
-| BE-018 | `test_stories_array_included` | Developer's stories array populated | Dev with 5 stories | `stories` array has 5 items with key, summary, story_points |
-| BE-019 | `test_bugs_array_included` | Developer's bugs array populated | Dev with 3 attributed bugs | `bugs` array has 3 items with key, summary, story_points, parent_key |
-| BE-020 | `test_avatar_url_nullable` | Handle developers without avatar | Dev without Jira avatar | `avatar_url = null` |
+| BE-015 | `test_response_contains_all_fields` | Response contains all required fields | Valid request | All fields present: account_id, display_name, avatar_url, etc. |
+| BE-016 | `test_stories_array_included` | Developer's stories array populated | Dev with 5 stories | `stories` array has 5 items with key, summary, story_points |
+| BE-017 | `test_bugs_array_included` | Developer's bugs array populated | Dev with 3 attributed bugs | `bugs` array has 3 items with key, summary, story_points, parent_key |
+| BE-018 | `test_avatar_url_nullable` | Handle developers without avatar | Dev without Jira avatar | `avatar_url = null` |
 
 ### 1.6 API Endpoint Tests
 
 | Test ID | Test Name | Description | Input | Expected Output |
 |---------|-----------|-------------|-------|-----------------|
-| BE-021 | `test_endpoint_success` | Endpoint returns 200 with valid params | `board_id=1&days=90` | 200 OK with valid response |
-| BE-022 | `test_endpoint_validation_board_id` | Reject invalid board_id | `board_id=0` | 422 Validation Error |
-| BE-023 | `test_endpoint_validation_days_min` | Reject days below minimum | `days=6` | 422 Validation Error |
-| BE-024 | `test_endpoint_validation_days_max` | Reject days above maximum | `days=181` | 422 Validation Error |
-| BE-025 | `test_endpoint_default_days` | Default days=90 when not provided | `board_id=1` (no days param) | Uses 90 days |
+| BE-019 | `test_endpoint_success` | Endpoint returns 200 with valid params | `board_id=1&days=90` | 200 OK with valid response |
+| BE-020 | `test_endpoint_validation_board_id` | Reject invalid board_id | `board_id=0` | 422 Validation Error |
+| BE-021 | `test_endpoint_validation_days_min` | Reject days below minimum | `days=6` | 422 Validation Error |
+| BE-022 | `test_endpoint_validation_days_max` | Reject days above maximum | `days=181` | 422 Validation Error |
+| BE-023 | `test_endpoint_default_days` | Default days=90 when not provided | `board_id=1` (no days param) | Uses 90 days |
 
 ---
 
@@ -79,7 +77,7 @@ This document outlines the test cases for the Developer Rework Leaderboard featu
 | FE-002 | `renders developer rows after data loads` | Table populated with developer data | Mock successful API | Rows with names, avatars, metrics visible |
 | FE-003 | `renders disclaimer text` | Disclaimer visible in header | Mock successful API | "This data supports process improvement..." visible |
 | FE-004 | `renders table column headers` | All column headers present | Mock successful API | Avatar, Name, Rework Ratio, Stories, Points, Bugs, Bug Points visible |
-| FE-005 | `renders empty state` | Empty state when no developers meet threshold | Mock empty response | "No developers with 3+ stories" message visible |
+| FE-005 | `renders empty state` | Empty state when no developers have stories | Mock empty response | "No developers with stories in this period" message visible |
 | FE-006 | `renders error state with retry` | Error state with retry button | Mock failed API | Error message and retry button visible |
 
 ### 2.2 Avatar Rendering Tests
@@ -118,13 +116,6 @@ This document outlines the test cases for the Developer Rework Leaderboard featu
 | FE-021 | `refetches when timeRange changes` | New API call on time range change | Change timeRange prop | New API call with updated days |
 | FE-022 | `retry button refetches data` | Retry works after error | Error state, click retry | API called again |
 
-### 2.6 Warning Display Tests
-
-| Test ID | Test Name | Description | Setup | Assertion |
-|---------|-----------|-------------|-------|-----------|
-| FE-023 | `displays excluded developers warning` | Warning when devs filtered | `developers_excluded > 0` | Warning message visible |
-| FE-024 | `hides warning when no exclusions` | No warning when all devs shown | `developers_excluded = 0` | No warning message |
-
 ---
 
 ## 3. E2E Tests
@@ -144,7 +135,7 @@ This document outlines the test cases for the Developer Rework Leaderboard featu
 | Test ID | Test Name | Description | Preconditions | Steps | Expected Result |
 |---------|-----------|-------------|---------------|-------|-----------------|
 | E2E-004 | `updates leaderboard when time range changes` | Data refreshes on range change | Mock different data for 90d vs 30d | 1. Load dashboard (90d) 2. Change to 30d | New developer data displayed |
-| E2E-005 | `shows different developers for different ranges` | Threshold affects visibility | Dev A: 5 stories in 90d, 2 in 30d | 1. Load 90d (Dev A visible) 2. Switch to 30d | Dev A hidden (below threshold) |
+| E2E-005 | `shows different metrics for different ranges` | Metrics change based on time range | Dev A: different story counts in 90d vs 30d | 1. Load 90d 2. Switch to 30d | Dev A metrics updated accordingly |
 
 ### 3.3 Loading State Tests
 
@@ -164,31 +155,30 @@ This document outlines the test cases for the Developer Rework Leaderboard featu
 
 | Test ID | Test Name | Description | Preconditions | Steps | Expected Result |
 |---------|-----------|-------------|---------------|-------|-----------------|
-| E2E-010 | `shows empty state when no developers meet threshold` | Empty message | Mock empty developers array | 1. Navigate to dashboard | "No developers with 3+ stories" message |
-| E2E-011 | `displays excluded developers warning` | Warning count | Mock `developers_excluded: 3` | 1. Navigate to dashboard | "3 developers hidden" warning visible |
+| E2E-010 | `shows empty state when no developers have stories` | Empty message | Mock empty developers array | 1. Navigate to dashboard | "No developers with stories in this period" message |
 
 ### 3.6 Drill-Down Interaction Tests
 
 | Test ID | Test Name | Description | Preconditions | Steps | Expected Result |
 |---------|-----------|-------------|---------------|-------|-----------------|
-| E2E-012 | `expands developer row on click` | Row expansion works | Developer data loaded | 1. Click developer row | Detail section expands with stories/bugs |
-| E2E-013 | `collapses developer row on second click` | Row collapse works | Row expanded | 1. Click same row again | Detail section collapses |
-| E2E-014 | `displays stories in expanded view` | Stories sub-table | Expand row | 1. Click to expand | Stories table with keys, summaries, points |
-| E2E-015 | `displays bugs in expanded view` | Bugs sub-table | Expand row | 1. Click to expand | Bugs table with keys, parent story links |
-| E2E-016 | `Jira links open in new tab` | Links work | Expand row | 1. Click Jira issue link | Opens Jira in new tab |
+| E2E-011 | `expands developer row on click` | Row expansion works | Developer data loaded | 1. Click developer row | Detail section expands with stories/bugs |
+| E2E-012 | `collapses developer row on second click` | Row collapse works | Row expanded | 1. Click same row again | Detail section collapses |
+| E2E-013 | `displays stories in expanded view` | Stories sub-table | Expand row | 1. Click to expand | Stories table with keys, summaries, points |
+| E2E-014 | `displays bugs in expanded view` | Bugs sub-table | Expand row | 1. Click to expand | Bugs table with keys, parent story links |
+| E2E-015 | `Jira links open in new tab` | Links work | Expand row | 1. Click Jira issue link | Opens Jira in new tab |
 
 ### 3.7 Sorting Tests
 
 | Test ID | Test Name | Description | Preconditions | Steps | Expected Result |
 |---------|-----------|-------------|---------------|-------|-----------------|
-| E2E-017 | `developers sorted by rework ratio descending` | Default sort order | Devs with ratios: 10%, 30%, 20% | 1. Load dashboard | Order: 30% first, then 20%, then 10% |
+| E2E-016 | `developers sorted by rework ratio descending` | Default sort order | Devs with ratios: 10%, 30%, 20% | 1. Load dashboard | Order: 30% first, then 20%, then 10% |
 
 ### 3.8 Accessibility Tests
 
 | Test ID | Test Name | Description | Preconditions | Steps | Expected Result |
 |---------|-----------|-------------|---------------|-------|-----------------|
-| E2E-018 | `keyboard navigation works` | Tab through rows | Dashboard loaded | 1. Tab through table | Focus moves through rows, Enter expands |
-| E2E-019 | `screen reader announces row content` | ARIA labels correct | Dashboard loaded | 1. Use screen reader | Developer name, metrics announced |
+| E2E-017 | `keyboard navigation works` | Tab through rows | Dashboard loaded | 1. Tab through table | Focus moves through rows, Enter expands |
+| E2E-018 | `screen reader announces row content` | ARIA labels correct | Dashboard loaded | 1. Use screen reader | Developer name, metrics announced |
 
 ---
 
@@ -222,8 +212,6 @@ export interface DeveloperMetrics {
 export interface DeveloperLeaderboardResponse {
   developers: DeveloperMetrics[];
   total_developers: number;
-  developers_excluded: number;
-  warning: string | null;
 }
 
 export function createDeveloperMetrics(overrides: Partial<DeveloperMetrics> = {}): DeveloperMetrics {
@@ -256,9 +244,7 @@ export function createDeveloperLeaderboardResponse(
       createDeveloperMetrics({ display_name: 'Bob Johnson', rework_ratio: 18.5, account_id: '5f7c3b0987654321' }),
       createDeveloperMetrics({ display_name: 'Carol White', rework_ratio: 8.2, account_id: '5f7c3b1122334455' }),
     ],
-    total_developers: 5,
-    developers_excluded: 2,
-    warning: '2 developers hidden (fewer than 3 stories)',
+    total_developers: 3,
     ...overrides,
   };
 }
@@ -269,13 +255,6 @@ export const LEADERBOARD_DATA_DEFAULT = createDeveloperLeaderboardResponse();
 export const LEADERBOARD_DATA_EMPTY = createDeveloperLeaderboardResponse({
   developers: [],
   total_developers: 0,
-  developers_excluded: 0,
-  warning: null,
-});
-
-export const LEADERBOARD_DATA_NO_EXCLUSIONS = createDeveloperLeaderboardResponse({
-  developers_excluded: 0,
-  warning: null,
 });
 ```
 
@@ -391,20 +370,11 @@ getDeveloperDetailSection(developerName: string): Locator {
 }
 
 /**
- * Verify leaderboard shows excluded warning
- */
-async expectLeaderboardWarning(excludedCount: number): Promise<void> {
-  await expect(
-    this.leaderboardSection.getByText(new RegExp(`${excludedCount} developers? hidden`, 'i'))
-  ).toBeVisible();
-}
-
-/**
  * Verify leaderboard empty state
  */
 async expectLeaderboardEmpty(): Promise<void> {
   await expect(
-    this.leaderboardSection.getByText(/no developers with 3\+ stories/i)
+    this.leaderboardSection.getByText(/no developers with stories in this period/i)
   ).toBeVisible();
 }
 
@@ -424,21 +394,22 @@ async getDeveloperReworkRatio(developerName: string): Promise<string> {
 
 ### 5.1 Standard Scenarios
 
-| Scenario | Developers | Rework Ratios | Excluded |
-|----------|------------|---------------|----------|
-| Default | Alice (25%), Bob (18.5%), Carol (8.2%) | Mixed | 2 |
-| High Rework Team | Dev1 (55%), Dev2 (42%), Dev3 (38%) | All high | 0 |
-| Low Rework Team | Dev1 (5%), Dev2 (8%), Dev3 (12%) | All low | 0 |
-| Single Developer | Alice (15%) | - | 0 |
-| Empty | None | - | 0 |
+| Scenario | Developers | Rework Ratios |
+|----------|------------|---------------|
+| Default | Alice (25%), Bob (18.5%), Carol (8.2%) | Mixed |
+| High Rework Team | Dev1 (55%), Dev2 (42%), Dev3 (38%) | All high |
+| Low Rework Team | Dev1 (5%), Dev2 (8%), Dev3 (12%) | All low |
+| Single Developer | Alice (15%) | - |
+| Empty | None | - |
 
 ### 5.2 Edge Cases
 
 | Scenario | Description | Expected Behavior |
 |----------|-------------|-------------------|
-| All devs below threshold | All devs have <3 stories | Empty state shown |
+| No stories in time range | No developers have stories | Empty state shown |
 | Developer with 0% rework | No bugs attributed | 0% shown with green badge |
 | Developer with 100% rework | Bug points = story points | 100% shown with red badge |
+| Developer with 1 story | Single story in time range | Developer shown with correct metrics |
 | Missing avatar | Developer has no Jira avatar | Placeholder shown |
 | Very long name | 50+ character display name | Name truncated with ellipsis |
 | Unicode name | Name with emoji/special chars | Rendered correctly |

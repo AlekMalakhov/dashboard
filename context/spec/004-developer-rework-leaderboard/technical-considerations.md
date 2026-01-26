@@ -62,16 +62,13 @@ GET /api/rework/developers?board_id={board_id}&days={days}
       ]
     }
   ],
-  "total_developers": 8,
-  "developers_excluded": 2,
-  "warning": "2 developers hidden (fewer than 3 stories)"
+  "total_developers": 8
 }
 ```
 
 **Response Rules:**
 - Sorted by `rework_ratio` descending (highest first)
-- Developers with fewer than 3 stories are excluded from `developers` array
-- `developers_excluded` indicates how many were filtered out
+- All developers with at least 1 story are included
 - `stories` and `bugs` arrays included for drill-down functionality
 
 ---
@@ -113,8 +110,6 @@ class DeveloperLeaderboardResponse(BaseModel):
     """Leaderboard response."""
     developers: list[DeveloperMetrics]
     total_developers: int
-    developers_excluded: int
-    warning: Optional[str]
 ```
 
 #### 2.2.2 Service Method (`service.py`)
@@ -148,8 +143,8 @@ async def get_developer_rework_leaderboard(
         stories, bugs_with_parents, story_points_field_id
     )
 
-    # 5. Calculate ratios and filter
-    result = self._calculate_developer_metrics(developer_data, min_stories=3)
+    # 5. Calculate ratios and sort
+    result = self._calculate_developer_metrics(developer_data)
 
     return result
 ```
@@ -172,9 +167,8 @@ async def get_developer_rework_leaderboard(
    - Bugs attributed to the parent story's assignee (not the bug fixer)
    - Build per-developer issue lists for drill-down
 
-4. **`_calculate_developer_metrics()`** - Calculate ratios and apply filters:
+4. **`_calculate_developer_metrics()`** - Calculate ratios:
    - Rework ratio = (bug_points / story_points_delivered) × 100
-   - Filter out developers with < 3 stories
    - Sort by rework_ratio descending
 
 #### 2.2.3 API Endpoint (`routes.py`)
@@ -228,8 +222,6 @@ export interface DeveloperMetrics {
 export interface DeveloperLeaderboardResponse {
   developers: DeveloperMetrics[];
   total_developers: number;
-  developers_excluded: number;
-  warning: string | null;
 }
 
 export async function getDeveloperLeaderboard(
@@ -270,7 +262,7 @@ DeveloperLeaderboardTable
 │           └── Bugs sub-table
 ├── Loading State (skeleton rows with shimmer)
 ├── Error State (error message + retry button)
-└── Empty State ("No developers with 3+ stories in this period")
+└── Empty State ("No developers with stories in this period")
 ```
 
 **Props:**
