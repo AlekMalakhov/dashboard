@@ -762,14 +762,12 @@ export async function getDeveloperLeaderboard(
 
   console.log(`[getDeveloperLeaderboard] Bug attribution: ${bugsAttributed} attributed, ${bugsSkippedNoLink} skipped (no link), ${bugsSkippedNoParent} skipped (parent not in range)`);
 
-  // Step 6: Calculate metrics and apply minimum threshold
-  const MIN_STORIES = 3;
+  // Step 6: Calculate metrics (no minimum threshold)
   const developers: DeveloperMetrics[] = [];
-  let developersExcluded = 0;
 
   for (const [accountId, data] of developerData.entries()) {
-    if (data.stories.length < MIN_STORIES) {
-      developersExcluded++;
+    // Include all developers with at least 1 story
+    if (data.stories.length === 0) {
       continue;
     }
 
@@ -794,16 +792,10 @@ export async function getDeveloperLeaderboard(
   // Sort by rework ratio descending
   developers.sort((a, b) => b.rework_ratio - a.rework_ratio);
 
-  // Warning message
-  let warning: string | null = null;
-  if (developersExcluded > 0) {
-    warning = `${developersExcluded} developer(s) hidden (fewer than ${MIN_STORIES} stories)`;
-  }
-
   return {
     developers,
     total_developers: developers.length,
-    developers_excluded: developersExcluded,
-    warning,
+    developers_excluded: 0,
+    warning: null,
   };
 }
