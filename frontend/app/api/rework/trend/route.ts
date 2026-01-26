@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const boardIdParam = searchParams.get('board_id');
-    const monthsParam = searchParams.get('months');
+    const daysParam = searchParams.get('days');
 
     // Validate board_id
     if (!boardIdParam) {
@@ -24,16 +24,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate months (default to 3)
-    const months = monthsParam ? parseInt(monthsParam, 10) : 3;
-    if (![1, 2, 3, 6].includes(months)) {
+    // Validate days (default to 90, range 7-180)
+    const days = daysParam ? parseInt(daysParam, 10) : 90;
+    if (isNaN(days) || days < 7 || days > 180) {
       return NextResponse.json(
-        { error: 'months parameter must be one of: 1, 2, 3, 6' },
+        { error: 'days parameter must be between 7 and 180' },
         { status: 400 }
       );
     }
 
-    const trend = await getReworkTrend(boardId, months);
+    const trend = await getReworkTrend(boardId, days);
 
     return NextResponse.json(trend);
   } catch (error) {

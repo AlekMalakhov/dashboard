@@ -383,7 +383,7 @@ function generateAllWeeks(startDate: Date, endDate: Date): string[] {
  */
 export async function getReworkTrend(
   boardId: number,
-  months: number
+  days: number
 ): Promise<ReworkTrendResponse> {
   // Step 1: Get project key for the board
   const projectKey = await getBoardProjectKey(boardId);
@@ -395,7 +395,6 @@ export async function getReworkTrend(
   const storyPointsFieldId = await detectStoryPointsField();
 
   // Step 3: Calculate date range
-  let days = months * 30;
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -407,12 +406,12 @@ export async function getReworkTrend(
   startDate.setUTCDate(startDate.getUTCDate() - daysSinceMonday);
   // Recalculate days to include the full start week
   // Add 1 day to account for time-of-day precision in Jira's relative date queries
-  days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const fetchDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
   // Step 4: Fetch all bugs and stories in parallel
   const [bugs, stories] = await Promise.all([
-    fetchBugs(projectKey, days, storyPointsFieldId),
-    fetchCompletedStories(projectKey, days, storyPointsFieldId),
+    fetchBugs(projectKey, fetchDays, storyPointsFieldId),
+    fetchCompletedStories(projectKey, fetchDays, storyPointsFieldId),
   ]);
 
   // Step 5: Group by week
