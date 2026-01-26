@@ -482,3 +482,305 @@ export async function getReworkTrend(
     warning,
   };
 }
+
+// Types for developer leaderboard
+export interface DeveloperIssueDetail {
+  key: string;
+  summary: string;
+  story_points: number | null;
+  parent_key?: string;
+}
+
+export interface DeveloperMetrics {
+  account_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  rework_ratio: number;
+  stories_count: number;
+  story_points_delivered: number;
+  bugs_count: number;
+  bug_points: number;
+  stories: DeveloperIssueDetail[];
+  bugs: DeveloperIssueDetail[];
+}
+
+export interface DeveloperLeaderboardResponse {
+  developers: DeveloperMetrics[];
+  total_developers: number;
+  developers_excluded: number;
+  warning: string | null;
+}
+
+interface JiraAssignee {
+  accountId: string;
+  displayName: string;
+  avatarUrls?: {
+    '48x48'?: string;
+  };
+}
+
+interface JiraIssueLink {
+  type: {
+    name: string;
+    inward: string;
+    outward: string;
+  };
+  inwardIssue?: {
+    key: string;
+  };
+  outwardIssue?: {
+    key: string;
+  };
+}
+
+/**
+ * Fetch completed stories with assignee information.
+ */
+async function fetchStoriesWithAssignee(
+  projectKey: string,
+  days: number,
+  storyPointsFieldId: string | null
+): Promise<JiraIssue[]> {
+  const jira = getJiraClient();
+
+  const jql = `project = ${projectKey} AND type IN (Story, Task) AND statusCategory = Done AND "Story Points" IS NOT EMPTY AND resolved >= "-${days}d"`;
+
+  let fields = 'key,summary,assignee,resolutiondate';
+  if (storyPointsFieldId) {
+    fields += `,${storyPointsFieldId}`;
+  }
+
+  const allIssues: JiraIssue[] = [];
+  let nextPageToken: string | null = null;
+
+  while (true) {
+    const params: Record<string, string | number | undefined> = {
+      jql,
+      fields,
+      maxResults: 100,
+    };
+    if (nextPageToken) {
+      params.nextPageToken = nextPageToken;
+    }
+
+    const data = await jira.get<JiraSearchResponse>(
+      '/rest/api/3/search/jql',
+      params
+    );
+    allIssues.push(...data.issues);
+
+    if (data.isLast) {
+      break;
+    }
+
+    nextPageToken = data.nextPageToken || null;
+  }
+
+  return allIssues;
+}
+
+/**
+ * Fetch bugs with assignee and issue links for attribution.
+ */
+async function fetchBugsWithLinks(
+  projectKey: string,
+  days: number,
+  storyPointsFieldId: string | null
+): Promise<JiraIssue[]> {
+  const jira = getJiraClient();
+
+  const jql = `project = ${projectKey} AND type = Bug AND statusCategory = Done AND "Story Points" IS NOT EMPTY AND resolved >= "-${days}d"`;
+
+  let fields = 'key,summary,assignee,resolutiondate,issuelinks';
+  if (storyPointsFieldId) {
+    fields += `,${storyPointsFieldId}`;
+  }
+
+  const allIssues: JiraIssue[] = [];
+  let nextPageToken: string | null = null;
+
+  while (true) {
+    const params: Record<string, string | number | undefined> = {
+      jql,
+      fields,
+      maxResults: 100,
+    };
+    if (nextPageToken) {
+      params.nextPageToken = nextPageToken;
+    }
+
+    const data = await jira.get<JiraSearchResponse>(
+      '/rest/api/3/search/jql',
+      params
+    );
+    allIssues.push(...data.issues);
+
+    if (data.isLast) {
+      break;
+    }
+
+    nextPageToken = data.nextPageToken || null;
+  }
+
+  return allIssues;
+}
+
+/**
+ * Get developer leaderboard with rework metrics per developer.
+ */
+export async function getDeveloperLeaderboard(
+  boardId: number,
+  days: number
+): Promise<DeveloperLeaderboardResponse> {
+  // Step 1: Get project key for the board
+  const projectKey = await getBoardProjectKey(boardId);
+  if (!projectKey) {
+    throw new Error(`Could not find project for board ${boardId}`);
+  }
+
+  // Step 2: Detect story points field
+  const storyPointsFieldId = await detectStoryPointsField();
+
+  // Step 3: Fetch stories and bugs in parallel
+  const [stories, bugs] = await Promise.all([
+    fetchStoriesWithAssignee(projectKey, days, storyPointsFieldId),
+    fetchBugsWithLinks(projectKey, days, storyPointsFieldId),
+  ]);
+
+  // Step 4: Build developer data from stories
+  const developerData = new Map<string, {
+    displayName: string;
+    avatarUrl: string | null;
+    stories: DeveloperIssueDetail[];
+    bugs: DeveloperIssueDetail[];
+    storyPoints: number;
+    bugPoints: number;
+  }>();
+
+  // Build a map of story key -> assignee for bug attribution
+  const storyAssigneeMap = new Map<string, string>();
+
+  for (const story of stories) {
+    const assignee = story.fields.assignee as JiraAssignee | null;
+    if (!assignee || !assignee.accountId) continue;
+
+    const accountId = assignee.accountId;
+    const storyKey = story.key;
+
+    storyAssigneeMap.set(storyKey, accountId);
+
+    let points = 0;
+    if (storyPointsFieldId) {
+      const pointsValue = story.fields[storyPointsFieldId];
+      if (typeof pointsValue === 'number') {
+        points = pointsValue;
+      }
+    }
+
+    if (!developerData.has(accountId)) {
+      developerData.set(accountId, {
+        displayName: assignee.displayName || 'Unknown',
+        avatarUrl: assignee.avatarUrls?.['48x48'] || null,
+        stories: [],
+        bugs: [],
+        storyPoints: 0,
+        bugPoints: 0,
+      });
+    }
+
+    const dev = developerData.get(accountId)!;
+    dev.stories.push({
+      key: storyKey,
+      summary: (story.fields.summary as string) || '',
+      story_points: points || null,
+    });
+    dev.storyPoints += points;
+  }
+
+  // Step 5: Attribute bugs to parent story's assignee
+  for (const bug of bugs) {
+    const issueLinks = bug.fields.issuelinks as JiraIssueLink[] | undefined;
+    if (!issueLinks) continue;
+
+    // Find "is caused by" link
+    let parentStoryKey: string | null = null;
+    for (const link of issueLinks) {
+      const inwardText = link.type?.inward?.toLowerCase() || '';
+      if (inwardText.includes('caused by') && link.inwardIssue?.key) {
+        parentStoryKey = link.inwardIssue.key;
+        break;
+      }
+    }
+
+    if (!parentStoryKey) continue;
+
+    // Get the parent story's assignee
+    const parentAssigneeId = storyAssigneeMap.get(parentStoryKey);
+    if (!parentAssigneeId) continue;
+
+    // Only attribute if we have this developer in our data
+    const dev = developerData.get(parentAssigneeId);
+    if (!dev) continue;
+
+    let bugPoints = 0;
+    if (storyPointsFieldId) {
+      const pointsValue = bug.fields[storyPointsFieldId];
+      if (typeof pointsValue === 'number') {
+        bugPoints = pointsValue;
+      }
+    }
+
+    dev.bugs.push({
+      key: bug.key,
+      summary: (bug.fields.summary as string) || '',
+      story_points: bugPoints || null,
+      parent_key: parentStoryKey,
+    });
+    dev.bugPoints += bugPoints;
+  }
+
+  // Step 6: Calculate metrics and apply minimum threshold
+  const MIN_STORIES = 3;
+  const developers: DeveloperMetrics[] = [];
+  let developersExcluded = 0;
+
+  for (const [accountId, data] of developerData.entries()) {
+    if (data.stories.length < MIN_STORIES) {
+      developersExcluded++;
+      continue;
+    }
+
+    const reworkRatio = data.storyPoints > 0
+      ? Math.round((data.bugPoints / data.storyPoints) * 1000) / 10
+      : 0;
+
+    developers.push({
+      account_id: accountId,
+      display_name: data.displayName,
+      avatar_url: data.avatarUrl,
+      rework_ratio: reworkRatio,
+      stories_count: data.stories.length,
+      story_points_delivered: data.storyPoints,
+      bugs_count: data.bugs.length,
+      bug_points: data.bugPoints,
+      stories: data.stories,
+      bugs: data.bugs,
+    });
+  }
+
+  // Sort by rework ratio descending
+  developers.sort((a, b) => b.rework_ratio - a.rework_ratio);
+
+  // Warning message
+  let warning: string | null = null;
+  if (developersExcluded > 0) {
+    warning = `${developersExcluded} developer(s) hidden (fewer than ${MIN_STORIES} stories)`;
+  }
+
+  return {
+    developers,
+    total_developers: developers.length,
+    developers_excluded: developersExcluded,
+    warning,
+  };
+}
