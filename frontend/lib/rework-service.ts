@@ -647,6 +647,8 @@ export async function getDeveloperLeaderboard(
     fetchBugsWithLinks(projectKey, days, storyPointsFieldId),
   ]);
 
+  console.log(`[getDeveloperLeaderboard] Fetched ${stories.length} stories and ${bugs.length} bugs`);
+
   // Step 4: Build developer data from stories
   const developerData = new Map<string, {
     displayName: string;
@@ -698,9 +700,16 @@ export async function getDeveloperLeaderboard(
   }
 
   // Step 5: Attribute bugs to parent story's assignee
+  let bugsAttributed = 0;
+  let bugsSkippedNoLink = 0;
+  let bugsSkippedNoParent = 0;
+
   for (const bug of bugs) {
     const issueLinks = bug.fields.issuelinks as JiraIssueLink[] | undefined;
-    if (!issueLinks) continue;
+    if (!issueLinks || issueLinks.length === 0) {
+      bugsSkippedNoLink++;
+      continue;
+    }
 
     // Find "is caused by" link
     let parentStoryKey: string | null = null;
@@ -712,11 +721,20 @@ export async function getDeveloperLeaderboard(
       }
     }
 
-    if (!parentStoryKey) continue;
+    if (!parentStoryKey) {
+      bugsSkippedNoLink++;
+      console.log(`[getDeveloperLeaderboard] Bug ${bug.key} has no "is caused by" link. Links:`,
+        issueLinks.map(l => ({ type: l.type?.inward, inward: l.inwardIssue?.key, outward: l.outwardIssue?.key })));
+      continue;
+    }
 
     // Get the parent story's assignee
     const parentAssigneeId = storyAssigneeMap.get(parentStoryKey);
-    if (!parentAssigneeId) continue;
+    if (!parentAssigneeId) {
+      bugsSkippedNoParent++;
+      console.log(`[getDeveloperLeaderboard] Bug ${bug.key} parent ${parentStoryKey} not found in stories (maybe outside time range or unassigned)`);
+      continue;
+    }
 
     // Only attribute if we have this developer in our data
     const dev = developerData.get(parentAssigneeId);
@@ -730,6 +748,8 @@ export async function getDeveloperLeaderboard(
       }
     }
 
+    console.log(`[getDeveloperLeaderboard] Bug ${bug.key} (${bugPoints} pts) -> parent ${parentStoryKey} -> developer ${dev.displayName}`);
+
     dev.bugs.push({
       key: bug.key,
       summary: (bug.fields.summary as string) || '',
@@ -737,7 +757,10 @@ export async function getDeveloperLeaderboard(
       parent_key: parentStoryKey,
     });
     dev.bugPoints += bugPoints;
+    bugsAttributed++;
   }
+
+  console.log(`[getDeveloperLeaderboard] Bug attribution: ${bugsAttributed} attributed, ${bugsSkippedNoLink} skipped (no link), ${bugsSkippedNoParent} skipped (parent not in range)`);
 
   // Step 6: Calculate metrics and apply minimum threshold
   const MIN_STORIES = 3;
