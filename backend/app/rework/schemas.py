@@ -112,3 +112,45 @@ class ReworkTrendResponse(BaseModel):
     total_weeks: int = Field(..., description="Total number of weeks in response", ge=0)
     items_excluded: int = Field(..., description="Number of items excluded from analysis", ge=0)
     warning: Optional[str] = Field(None, description="Warning message if data quality issues detected")
+
+
+class DeveloperIssueDetail(BaseModel):
+    """Issue detail for drill-down."""
+
+    key: str = Field(..., description="Issue key (e.g., PROJ-123)")
+    summary: str = Field(..., description="Issue summary/title")
+    story_points: Optional[float] = Field(None, description="Story points")
+    parent_key: Optional[str] = Field(None, description="For bugs: the linked story key")
+
+
+class DeveloperMetrics(BaseModel):
+    """Metrics for a single developer."""
+
+    account_id: str = Field(..., description="Jira account ID")
+    display_name: str = Field(..., description="Developer display name from Jira")
+    avatar_url: Optional[str] = Field(None, description="URL to developer's avatar image")
+    rework_ratio: float = Field(..., description="Rework ratio percentage (bugs / stories * 100)", ge=0)
+    stories_count: int = Field(..., description="Number of stories/tasks assigned", ge=0)
+    story_points_delivered: float = Field(..., description="Total story points delivered", ge=0)
+    bugs_count: int = Field(..., description="Number of bugs linked to developer's stories", ge=0)
+    bug_points: float = Field(..., description="Story points associated with bugs", ge=0)
+    stories: list[DeveloperIssueDetail] = Field(
+        default_factory=list,
+        description="List of stories assigned to this developer",
+    )
+    bugs: list[DeveloperIssueDetail] = Field(
+        default_factory=list,
+        description="List of bugs linked to developer's stories",
+    )
+
+
+class DeveloperLeaderboardResponse(BaseModel):
+    """Leaderboard response."""
+
+    developers: list[DeveloperMetrics] = Field(
+        default_factory=list,
+        description="List of developers with their metrics",
+    )
+    total_developers: int = Field(..., description="Total developers analyzed", ge=0)
+    developers_excluded: int = Field(..., description="Developers excluded (< 3 stories)", ge=0)
+    warning: Optional[str] = Field(None, description="Warning message if developers excluded")

@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 from loguru import logger
 
-from app.rework.schemas import ReworkMetricsResponse, ReworkTrendResponse
+from app.rework.schemas import DeveloperLeaderboardResponse, ReworkMetricsResponse, ReworkTrendResponse
 from app.rework.service import ReworkService
 
 router = APIRouter()
@@ -72,3 +72,38 @@ async def get_rework_trend(
     )
 
     return trend
+
+
+@router.get("/rework/developers", response_model=DeveloperLeaderboardResponse)
+async def get_developer_rework_leaderboard(
+    board_id: Annotated[int, Query(description="Jira board ID", gt=0)],
+    days: Annotated[int, Query(description="Time range in days", ge=7, le=180)] = 90,
+) -> DeveloperLeaderboardResponse:
+    """
+    Get developer rework leaderboard for a Jira board.
+
+    Returns per-developer metrics including story counts, story points delivered,
+    and rework ratio. Bugs are attributed to the assignee of the parent story
+    they are linked to via "is caused by" relationship.
+
+    Developers with fewer than 3 stories are excluded from results.
+
+    Args:
+        board_id: Jira board ID to analyze
+        days: Number of days to look back (7-180)
+
+    Returns:
+        DeveloperLeaderboardResponse: Developer metrics grouped by assignee,
+        sorted by rework ratio (highest first)
+    """
+    logger.info(f"Getting developer rework leaderboard for board {board_id}, days {days}")
+
+    rework_service = ReworkService()
+    leaderboard = await rework_service.get_developer_rework_leaderboard(board_id=board_id, days=days)
+
+    logger.info(
+        f"Developer leaderboard: {len(leaderboard.developers)} developers, "
+        f"{leaderboard.developers_excluded} excluded"
+    )
+
+    return leaderboard

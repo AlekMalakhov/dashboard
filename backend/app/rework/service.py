@@ -8,7 +8,16 @@ from fastapi import HTTPException, status
 from loguru import logger
 
 from app.core.jira_client import JiraClient, get_jira_client
-from app.rework.schemas import IssueDetail, JiraSearchResponse, ReworkMetricsResponse, ReworkTrendResponse, WeeklyDataPoint
+from app.rework.schemas import (
+    DeveloperIssueDetail,
+    DeveloperLeaderboardResponse,
+    DeveloperMetrics,
+    IssueDetail,
+    JiraSearchResponse,
+    ReworkMetricsResponse,
+    ReworkTrendResponse,
+    WeeklyDataPoint,
+)
 
 
 class ReworkService:
@@ -306,6 +315,145 @@ class ReworkService:
 
         except Exception as e:
             logger.exception(f"Failed to fetch completed stories: {e}")
+            return []
+
+    async def _fetch_stories_with_assignee(
+        self,
+        project_key: str,
+        days: int,
+        story_points_field_id: str | None = None,
+    ) -> list[dict]:
+        """
+        Fetch all completed stories and tasks with assignee information.
+
+        Similar to _fetch_completed_stories but includes assignee field.
+
+        Args:
+            project_key: Jira project key to query
+            days: Number of days to look back
+            story_points_field_id: Custom field ID for story points
+
+        Returns:
+            List of completed story/task issues from Jira with assignee info
+        """
+        try:
+            # Fetch stories and tasks that were resolved in the time period
+            # Only include items with Story Points assigned
+            # Using statusCategory = Done to capture all "done" statuses
+            jql = (
+                f"project = {project_key} "
+                f"AND type IN (Story, Task) "
+                f"AND statusCategory = Done "
+                f'AND "Story Points" IS NOT EMPTY '
+                f'AND resolved >= "-{days}d"'
+            )
+            fields = "key,summary,assignee,resolutiondate"
+            if story_points_field_id:
+                fields += f",{story_points_field_id}"
+
+            logger.info(f"Fetching stories with assignee for project {project_key} with JQL: {jql}")
+
+            all_issues = []
+            max_results = 100  # Jira API max per request
+            next_page_token: str | None = None
+
+            while True:
+                params: dict = {
+                    "jql": jql,
+                    "fields": fields,
+                    "maxResults": max_results,
+                }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
+
+                data = await self.jira.get("/rest/api/3/search/jql", params=params)
+                search_response = JiraSearchResponse(**data)
+                all_issues.extend(search_response.issues)
+
+                logger.info(
+                    f"Fetched {len(search_response.issues)} stories with assignee "
+                    f"(accumulated: {len(all_issues)}, isLast: {search_response.isLast})"
+                )
+
+                if search_response.isLast:
+                    break
+
+                next_page_token = search_response.nextPageToken
+
+            return [issue.model_dump() for issue in all_issues]
+
+        except Exception as e:
+            logger.exception(f"Failed to fetch stories with assignee: {e}")
+            return []
+
+    async def _fetch_bugs_for_leaderboard(
+        self,
+        project_key: str,
+        days: int,
+        story_points_field_id: str | None = None,
+    ) -> list[dict]:
+        """
+        Fetch completed bugs with issue links for developer attribution.
+
+        Similar to _fetch_bugs but includes issuelinks field to get parent stories.
+
+        Args:
+            project_key: Jira project key to query
+            days: Number of days to look back
+            story_points_field_id: Custom field ID for story points
+
+        Returns:
+            List of completed bug issues from Jira with issue links
+        """
+        try:
+            # Fetch bugs that were completed in the time period
+            # Only include bugs with Story Points assigned
+            # Using statusCategory = Done to capture all "done" statuses
+            jql = (
+                f"project = {project_key} "
+                f"AND type = Bug "
+                f"AND statusCategory = Done "
+                f'AND "Story Points" IS NOT EMPTY '
+                f'AND resolved >= "-{days}d"'
+            )
+            # Include issuelinks to get "is caused by" relationships
+            fields = "key,summary,assignee,resolutiondate,issuelinks"
+            if story_points_field_id:
+                fields += f",{story_points_field_id}"
+
+            logger.info(f"Fetching bugs for leaderboard for project {project_key} with JQL: {jql}")
+
+            all_issues = []
+            max_results = 100  # Jira API max per request
+            next_page_token: str | None = None
+
+            while True:
+                params: dict = {
+                    "jql": jql,
+                    "fields": fields,
+                    "maxResults": max_results,
+                }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
+
+                data = await self.jira.get("/rest/api/3/search/jql", params=params)
+                search_response = JiraSearchResponse(**data)
+                all_issues.extend(search_response.issues)
+
+                logger.info(
+                    f"Fetched {len(search_response.issues)} bugs "
+                    f"(accumulated: {len(all_issues)}, isLast: {search_response.isLast})"
+                )
+
+                if search_response.isLast:
+                    break
+
+                next_page_token = search_response.nextPageToken
+
+            return [issue.model_dump() for issue in all_issues]
+
+        except Exception as e:
+            logger.exception(f"Failed to fetch bugs for leaderboard: {e}")
             return []
 
     async def get_rework_metrics(
@@ -611,6 +759,230 @@ class ReworkService:
         )
 
         logger.info(f"Generated {len(weekly_data)} weeks of trend data for board {board_id}")
+
+        return response
+
+    async def get_developer_rework_leaderboard(
+        self,
+        board_id: int,
+        days: int,
+    ) -> DeveloperLeaderboardResponse:
+        """
+        Calculate rework metrics grouped by developer.
+
+        Includes bug attribution: bugs are attributed to the assignee of the parent story
+        they are linked to via "is caused by" relationship.
+
+        Args:
+            board_id: Jira board ID to analyze
+            days: Number of days to look back (7-180)
+
+        Returns:
+            DeveloperLeaderboardResponse: Developer metrics with rework ratios
+        """
+        logger.info(f"Calculating developer rework leaderboard for board {board_id}, days {days}")
+
+        # Step 1: Get project key for the board
+        project_key = await self._get_board_project_key(board_id)
+        if not project_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Could not find project for board {board_id}",
+            )
+
+        # Step 2: Detect story points field
+        story_points_field_id = await self._detect_story_points_field()
+
+        # Step 3: Fetch stories and bugs in parallel
+        stories, bugs = await asyncio.gather(
+            self._fetch_stories_with_assignee(project_key, days, story_points_field_id),
+            self._fetch_bugs_for_leaderboard(project_key, days, story_points_field_id),
+        )
+        logger.info(
+            f"Found {len(stories)} completed stories and {len(bugs)} bugs with assignee info"
+        )
+
+        # Step 4: Build a map of story key -> assignee for quick lookup
+        story_assignee_map: dict[str, dict] = {}
+        for story in stories:
+            story_key = story["key"]
+            assignee = story.get("fields", {}).get("assignee")
+            if assignee:
+                story_assignee_map[story_key] = assignee
+
+        # Step 5: Group by developer
+        developer_data: dict[str, dict] = {}
+
+        # First, process stories
+        for story in stories:
+            # Get assignee info
+            assignee = story.get("fields", {}).get("assignee")
+            if not assignee:
+                # Skip unassigned stories
+                continue
+
+            account_id = assignee.get("accountId")
+            if not account_id:
+                continue
+
+            display_name = assignee.get("displayName", "Unknown")
+            avatar_urls = assignee.get("avatarUrls", {})
+            avatar_url = avatar_urls.get("48x48")
+
+            # Initialize developer entry if needed
+            if account_id not in developer_data:
+                developer_data[account_id] = {
+                    "account_id": account_id,
+                    "display_name": display_name,
+                    "avatar_url": avatar_url,
+                    "stories": [],
+                    "story_points_total": 0.0,
+                    "bugs": [],
+                    "bug_points_total": 0.0,
+                }
+
+            # Get story details
+            story_key = story["key"]
+            story_summary = story.get("fields", {}).get("summary", "")
+            story_points = None
+            if story_points_field_id:
+                points_value = story.get("fields", {}).get(story_points_field_id)
+                if points_value is not None and isinstance(points_value, (int, float)):
+                    story_points = float(points_value)
+
+            # Add story to developer's list
+            developer_data[account_id]["stories"].append(
+                DeveloperIssueDetail(
+                    key=story_key,
+                    summary=story_summary,
+                    story_points=story_points,
+                )
+            )
+
+            # Accumulate story points
+            if story_points is not None and story_points > 0:
+                developer_data[account_id]["story_points_total"] += story_points
+
+        # Step 6: Process bugs and attribute to parent story's assignee
+        bugs_skipped = 0
+        for bug in bugs:
+            bug_key = bug["key"]
+            bug_summary = bug.get("fields", {}).get("summary", "")
+            bug_points = None
+            if story_points_field_id:
+                points_value = bug.get("fields", {}).get(story_points_field_id)
+                if points_value is not None and isinstance(points_value, (int, float)):
+                    bug_points = float(points_value)
+
+            # Find "is caused by" link
+            issue_links = bug.get("fields", {}).get("issuelinks", [])
+            parent_story_key = None
+
+            for link in issue_links:
+                link_type = link.get("type", {})
+                inward = link_type.get("inward", "")
+
+                # Look for "is caused by" relationship
+                if "caused by" in inward.lower():
+                    # The inwardIssue is the parent story that caused this bug
+                    inward_issue = link.get("inwardIssue")
+                    if inward_issue:
+                        parent_story_key = inward_issue.get("key")
+                        break
+
+            # If no parent story link found, skip this bug
+            if not parent_story_key:
+                bugs_skipped += 1
+                logger.debug(f"Bug {bug_key} has no 'is caused by' link, skipping")
+                continue
+
+            # Look up the parent story's assignee
+            parent_assignee = story_assignee_map.get(parent_story_key)
+            if not parent_assignee:
+                bugs_skipped += 1
+                logger.debug(
+                    f"Bug {bug_key} parent story {parent_story_key} not found or has no assignee, skipping"
+                )
+                continue
+
+            parent_account_id = parent_assignee.get("accountId")
+            if not parent_account_id or parent_account_id not in developer_data:
+                bugs_skipped += 1
+                logger.debug(
+                    f"Bug {bug_key} parent story {parent_story_key} assignee not in developer list, skipping"
+                )
+                continue
+
+            # Attribute bug to parent story's assignee
+            developer_data[parent_account_id]["bugs"].append(
+                DeveloperIssueDetail(
+                    key=bug_key,
+                    summary=bug_summary,
+                    story_points=bug_points,
+                    parent_key=parent_story_key,
+                )
+            )
+
+            # Accumulate bug points
+            if bug_points is not None and bug_points > 0:
+                developer_data[parent_account_id]["bug_points_total"] += bug_points
+
+        logger.info(f"Attributed {len(bugs) - bugs_skipped} bugs, skipped {bugs_skipped} bugs")
+
+        # Step 7: Calculate metrics and filter by minimum threshold
+        min_stories_threshold = 3
+        developers: list[DeveloperMetrics] = []
+        developers_excluded = 0
+
+        for dev_data in developer_data.values():
+            stories_count = len(dev_data["stories"])
+
+            # Apply minimum threshold filter
+            if stories_count < min_stories_threshold:
+                developers_excluded += 1
+                continue
+
+            # Calculate rework ratio
+            story_points_delivered = dev_data["story_points_total"]
+            bug_points = dev_data["bug_points_total"]
+            rework_ratio = 0.0
+            if story_points_delivered > 0:
+                rework_ratio = (bug_points / story_points_delivered) * 100
+
+            developers.append(
+                DeveloperMetrics(
+                    account_id=dev_data["account_id"],
+                    display_name=dev_data["display_name"],
+                    avatar_url=dev_data["avatar_url"],
+                    rework_ratio=round(rework_ratio, 1),
+                    stories_count=stories_count,
+                    story_points_delivered=story_points_delivered,
+                    bugs_count=len(dev_data["bugs"]),
+                    bug_points=bug_points,
+                    stories=dev_data["stories"],
+                    bugs=dev_data["bugs"],
+                )
+            )
+
+        # Step 8: Sort by rework_ratio descending (highest first)
+        developers.sort(key=lambda d: d.rework_ratio, reverse=True)
+
+        # Step 9: Create warning message
+        warning = None
+        if developers_excluded > 0:
+            warning = f"{developers_excluded} developer(s) hidden (fewer than {min_stories_threshold} stories)"
+
+        response = DeveloperLeaderboardResponse(
+            developers=developers,
+            total_developers=len(developers),
+            developers_excluded=developers_excluded,
+            warning=warning,
+        )
+
+        logger.info(
+            f"Developer leaderboard: {len(developers)} developers, "
+            f"{developers_excluded} excluded, {bugs_skipped} bugs skipped"
+        )
 
         return response
 

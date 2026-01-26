@@ -159,3 +159,68 @@ export async function getReworkTrend(
 
   return response.json();
 }
+
+/**
+ * Issue detail for developer drill-down
+ */
+export interface DeveloperIssueDetail {
+  key: string;
+  summary: string;
+  story_points: number | null;
+  parent_key?: string;
+}
+
+/**
+ * Metrics for a single developer
+ */
+export interface DeveloperMetrics {
+  account_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  rework_ratio: number;
+  stories_count: number;
+  story_points_delivered: number;
+  bugs_count: number;
+  bug_points: number;
+  stories: DeveloperIssueDetail[];
+  bugs: DeveloperIssueDetail[];
+}
+
+/**
+ * Developer leaderboard response from backend
+ */
+export interface DeveloperLeaderboardResponse {
+  developers: DeveloperMetrics[];
+  total_developers: number;
+  developers_excluded: number;
+  warning: string | null;
+}
+
+/**
+ * Fetches developer leaderboard for a specific board and time range
+ *
+ * @param boardId - The ID of the board to fetch leaderboard for
+ * @param days - The time range in days (7-180)
+ * @returns Promise<DeveloperLeaderboardResponse> The developer leaderboard data
+ * @throws Error if the request fails
+ */
+export async function getDeveloperLeaderboard(
+  boardId: number,
+  days: number
+): Promise<DeveloperLeaderboardResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/rework/developers?board_id=${boardId}&days=${days}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch developer leaderboard: ${response.statusText}`);
+  }
+
+  return response.json();
+}
