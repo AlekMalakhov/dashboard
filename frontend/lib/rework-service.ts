@@ -121,6 +121,8 @@ async function fetchBugs(
 
   const jql = `project = ${projectKey} AND type = Bug AND statusCategory = Done AND "Story Points" IS NOT EMPTY AND resolved >= "-${days}d"`;
 
+  console.log(`[fetchBugs] JQL: ${jql}`);
+
   let fields = 'key,summary,created,resolutiondate';
   if (storyPointsFieldId) {
     fields += `,${storyPointsFieldId}`;
@@ -166,6 +168,8 @@ async function fetchCompletedStories(
   const jira = getJiraClient();
 
   const jql = `project = ${projectKey} AND type IN (Story, Task) AND statusCategory = Done AND "Story Points" IS NOT EMPTY AND resolved >= "-${days}d"`;
+
+  console.log(`[fetchCompletedStories] JQL: ${jql}`);
 
   let fields = 'key,summary,resolutiondate';
   if (storyPointsFieldId) {
