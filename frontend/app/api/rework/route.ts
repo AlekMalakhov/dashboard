@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getReworkMetrics } from '@/lib/rework-service';
 import { JiraApiError } from '@/lib/jira-client';
 
+// Force dynamic rendering to prevent caching issues
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const boardIdParam = searchParams.get('board_id');
     const daysParam = searchParams.get('days');
+
+    console.log(`[/api/rework] Received request: board_id=${boardIdParam}, days=${daysParam}`);
 
     // Validate board_id
     if (!boardIdParam) {
@@ -33,7 +38,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log(`[/api/rework] Fetching metrics for board ${boardId} with ${days} days`);
+
     const metrics = await getReworkMetrics(boardId, days);
+
+    console.log(`[/api/rework] Found ${metrics.stories_analyzed} stories, ${metrics.bugs_linked} bugs`);
 
     return NextResponse.json(metrics);
   } catch (error) {
