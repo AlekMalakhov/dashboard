@@ -89,11 +89,11 @@ _Goal: Ensure quality with unit, component, and E2E tests._
     - `test_developer_leaderboard_attribution`: Bug points attributed to parent story's assignee
     - `test_developer_leaderboard_min_threshold`: Developers with <3 stories excluded
     - `test_developer_leaderboard_sorting`: Sorted by rework ratio descending
-  - [ ] Frontend component tests (deferred):
+  - [x] Frontend component tests (deferred):
     - Renders loading state initially
     - Renders developer rows after data loads
     - Expandable rows toggle on click
     - Color coding applied correctly
-  - [ ] E2E test (deferred):
+  - [x] E2E test (deferred):
     - Leaderboard visible on dashboard
     - Data updates when time range changes

@@ -185,9 +185,12 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForAutoSelectedBoard();
       await dashboardPage.waitForMetricsLoaded();
 
-      // Get all developer names in order
-      const leaderboardSection = page.locator('[aria-label*="developer rework leaderboard"], section:has-text("Developer Rework Leaderboard")');
-      const rows = leaderboardSection.locator('tbody tr');
+      // Get all developer names in order - use role="button" since rows are clickable
+      const leaderboardSection = page.locator('[aria-label="Developer Rework Leaderboard"]');
+      const rows = leaderboardSection.locator('tbody tr[role="button"]');
+
+      // Wait for rows to be visible
+      await expect(rows.first()).toBeVisible();
 
       // First row should be Alice (25%)
       await expect(rows.first()).toContainText('Alice Smith');
@@ -204,7 +207,11 @@ test.describe('Developer Rework Leaderboard', () => {
         developers: [
           { ...LEADERBOARD_DATA_DEFAULT.developers[0], rework_ratio: 35.0 },
           { ...LEADERBOARD_DATA_DEFAULT.developers[1], rework_ratio: 22.0 },
+          { ...LEADERBOARD_DATA_DEFAULT.developers[2], rework_ratio: 8.2 },
         ],
+        total_developers: 5,
+        developers_excluded: 2,
+        warning: '2 developers hidden (fewer than 3 stories)',
       };
 
       await mockBoardsApi(page);
@@ -220,14 +227,18 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForAutoSelectedBoard();
       await dashboardPage.waitForMetricsLoaded();
 
-      // Verify 90d data
-      await expect(page.getByText('25%')).toBeVisible();
+      // Verify 90d data - look for Alice's 25% badge in the leaderboard
+      const leaderboard = page.locator('[aria-label="Developer Rework Leaderboard"]');
+      await expect(leaderboard.getByText('25.0%')).toBeVisible();
 
       // Switch to 30d
       await dashboardPage.selectTimeRangePreset('30d');
 
+      // Wait for API call to complete
+      await page.waitForTimeout(500);
+
       // Verify 30d data (Alice now 35%)
-      await expect(page.getByText('35%')).toBeVisible();
+      await expect(leaderboard.getByText('35.0%')).toBeVisible();
     });
   });
 
@@ -243,8 +254,8 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForAutoSelectedBoard();
 
       // Verify loading skeleton is displayed in leaderboard section
-      const leaderboardSection = page.locator('section:has-text("Developer Rework Leaderboard")');
-      await expect(leaderboardSection.locator('[class*="skeleton"]').first()).toBeVisible({ timeout: 1000 });
+      const leaderboardSection = page.locator('[aria-label="Developer Rework Leaderboard"]');
+      await expect(leaderboardSection.locator('tr.skeleton-shimmer').first()).toBeVisible({ timeout: 1000 });
 
       // Wait for data to load
       await expect(page.getByText('Alice Smith')).toBeVisible({ timeout: 5000 });
@@ -264,8 +275,8 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForMetricsLoaded();
 
       // Verify error message in leaderboard section
-      const leaderboardSection = page.locator('section:has-text("Developer Rework Leaderboard")');
-      await expect(leaderboardSection.getByText(/unable to load|failed to load/i)).toBeVisible({ timeout: 3000 });
+      const leaderboardSection = page.locator('[aria-label="Developer Rework Leaderboard"]');
+      await expect(leaderboardSection.getByText(/failed to load developer leaderboard/i)).toBeVisible({ timeout: 3000 });
       await expect(leaderboardSection.getByRole('button', { name: /retry/i })).toBeVisible();
     });
 
@@ -298,7 +309,7 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForAutoSelectedBoard();
 
       // Wait for error state
-      const leaderboardSection = page.locator('section:has-text("Developer Rework Leaderboard")');
+      const leaderboardSection = page.locator('[aria-label="Developer Rework Leaderboard"]');
       const retryButton = leaderboardSection.getByRole('button', { name: /retry/i });
       await expect(retryButton).toBeVisible({ timeout: 3000 });
 
@@ -351,11 +362,13 @@ test.describe('Developer Rework Leaderboard', () => {
       // Wait for leaderboard to load
       await expect(page.getByText('Alice Smith')).toBeVisible();
 
-      // Click on Alice's row
-      await page.getByText('Alice Smith').click();
+      // Click on Alice's row (the tr element with role="button")
+      const aliceRow = page.locator('tr[role="button"]:has-text("Alice Smith")');
+      await aliceRow.click();
 
       // Verify expanded content is visible (stories and bugs)
-      await expect(page.getByText('PROJ-101')).toBeVisible();
+      // Use .first() since PROJ-101 appears in both stories table and as parent reference in bugs table
+      await expect(page.getByText('PROJ-101').first()).toBeVisible();
       await expect(page.getByText('Implement feature A')).toBeVisible();
     });
 
@@ -370,13 +383,15 @@ test.describe('Developer Rework Leaderboard', () => {
       // Wait for leaderboard to load
       await expect(page.getByText('Alice Smith')).toBeVisible();
 
-      // Click to expand
-      await page.getByText('Alice Smith').click();
-      await expect(page.getByText('PROJ-101')).toBeVisible();
+      // Click on Alice's row to expand
+      const aliceRow = page.locator('tr[role="button"]:has-text("Alice Smith")');
+      await aliceRow.click();
+      // Use .first() since PROJ-101 appears in both stories table and as parent reference in bugs table
+      await expect(page.getByText('PROJ-101').first()).toBeVisible();
 
       // Click again to collapse
-      await page.getByText('Alice Smith').click();
-      await expect(page.getByText('PROJ-101')).not.toBeVisible();
+      await aliceRow.click();
+      await expect(page.getByText('PROJ-101').first()).not.toBeVisible();
     });
 
     test('displays bugs with parent story reference', async ({ page, dashboardPage }) => {
@@ -390,8 +405,9 @@ test.describe('Developer Rework Leaderboard', () => {
       // Wait for leaderboard to load
       await expect(page.getByText('Alice Smith')).toBeVisible();
 
-      // Click on Alice's row
-      await page.getByText('Alice Smith').click();
+      // Click on Alice's row to expand
+      const aliceRow = page.locator('tr[role="button"]:has-text("Alice Smith")');
+      await aliceRow.click();
 
       // Verify bug is shown with parent reference
       await expect(page.getByText('PROJ-201')).toBeVisible();
@@ -445,19 +461,19 @@ test.describe('Developer Rework Leaderboard', () => {
 
       // Verify color classes are applied
       // Note: Exact selectors depend on implementation
-      const highRow = page.locator('tr:has-text("Dev High")');
-      const mediumRow = page.locator('tr:has-text("Dev Medium")');
-      const lowRow = page.locator('tr:has-text("Dev Low")');
+      const highRow = page.locator('tr[role="button"]:has-text("Dev High")');
+      const mediumRow = page.locator('tr[role="button"]:has-text("Dev Medium")');
+      const lowRow = page.locator('tr[role="button"]:has-text("Dev Low")');
 
       await expect(highRow).toBeVisible();
       await expect(mediumRow).toBeVisible();
       await expect(lowRow).toBeVisible();
 
-      // Check for color-coded badges (red, amber, blue)
-      // The exact class names depend on implementation
-      await expect(highRow.locator('[class*="red"], [class*="danger"]')).toBeVisible();
-      await expect(mediumRow.locator('[class*="amber"], [class*="warning"]')).toBeVisible();
-      await expect(lowRow.locator('[class*="blue"], [class*="info"]')).toBeVisible();
+      // Check for color-coded badges in the Rework Ratio column
+      // The badges have specific percentage text, so we can use that to target them precisely
+      await expect(highRow.locator('span:has-text("45.0%")').first()).toHaveClass(/bg-red/);
+      await expect(mediumRow.locator('span:has-text("30.0%")').first()).toHaveClass(/bg-amber/);
+      await expect(lowRow.locator('span:has-text("15.0%")').first()).toHaveClass(/bg-blue/);
     });
   });
 });
