@@ -483,6 +483,28 @@ export async function getReworkTrend(
   };
 }
 
+// Types for top tickets with bugs
+export interface LinkedBug {
+  key: string;
+  summary: string;
+  link_type: string;
+}
+
+export interface TopTicketItem {
+  key: string;
+  summary: string;
+  issue_type: string;
+  bug_count: number;
+  bugs: LinkedBug[];
+}
+
+export interface TopTicketsWithBugsResponse {
+  tickets: TopTicketItem[];
+  total_tickets_with_bugs: number;
+  time_range_days: number;
+  link_types_used: string[];
+}
+
 // Types for developer leaderboard
 export interface DeveloperIssueDetail {
   key: string;
@@ -797,5 +819,203 @@ export async function getDeveloperLeaderboard(
     total_developers: developers.length,
     developers_excluded: 0,
     warning: null,
+  };
+}
+
+/**
+ * Fetch bugs created within time range with issue links.
+ */
+async function fetchBugsCreatedWithLinks(
+  projectKey: string,
+  days: number
+): Promise<JiraIssue[]> {
+  const jira = getJiraClient();
+
+  // Filter by creation date (not resolution date) for bugs
+  const jql = `project = ${projectKey} AND type = Bug AND created >= "-${days}d"`;
+
+  console.log(`[fetchBugsCreatedWithLinks] JQL: ${jql}`);
+
+  const fields = 'key,summary,issuelinks,issuetype';
+
+  const allIssues: JiraIssue[] = [];
+  let nextPageToken: string | null = null;
+
+  while (true) {
+    const params: Record<string, string | number | undefined> = {
+      jql,
+      fields,
+      maxResults: 100,
+    };
+    if (nextPageToken) {
+      params.nextPageToken = nextPageToken;
+    }
+
+    const data = await jira.get<JiraSearchResponse>(
+      '/rest/api/3/search/jql',
+      params
+    );
+    allIssues.push(...data.issues);
+
+    if (data.isLast) {
+      break;
+    }
+
+    nextPageToken = data.nextPageToken || null;
+  }
+
+  return allIssues;
+}
+
+/**
+ * Fetch tickets by their keys.
+ */
+async function fetchTicketsByKeys(keys: string[]): Promise<JiraIssue[]> {
+  if (keys.length === 0) return [];
+
+  const jira = getJiraClient();
+
+  // Batch fetch in chunks of 50 to avoid JQL length limits
+  const allTickets: JiraIssue[] = [];
+  const chunkSize = 50;
+
+  for (let i = 0; i < keys.length; i += chunkSize) {
+    const chunk = keys.slice(i, i + chunkSize);
+    const jql = `key IN (${chunk.map(k => `"${k}"`).join(',')})`;
+
+    const params: Record<string, string | number | undefined> = {
+      jql,
+      fields: 'key,summary,issuetype',
+      maxResults: 100,
+    };
+
+    const data = await jira.get<JiraSearchResponse>(
+      '/rest/api/3/search/jql',
+      params
+    );
+    allTickets.push(...data.issues);
+  }
+
+  return allTickets;
+}
+
+/**
+ * Extract linked parent tickets from a bug's issue links.
+ * Returns array of [ticket_key, link_type] tuples.
+ */
+function extractLinkedTickets(
+  bug: JiraIssue,
+  linkTypes: string[]
+): [string, string][] {
+  const links: [string, string][] = [];
+  const issueLinks = bug.fields.issuelinks as JiraIssueLink[] | undefined;
+
+  if (!issueLinks) return links;
+
+  for (const link of issueLinks) {
+    const linkTypeName = link.type?.name?.toLowerCase() || '';
+    const inwardText = link.type?.inward?.toLowerCase() || '';
+
+    // Check "is caused by" - bug points to story via inwardIssue
+    if (inwardText.includes('caused by') && link.inwardIssue?.key) {
+      if (linkTypes.some(lt => lt.toLowerCase().includes('caused by'))) {
+        links.push([link.inwardIssue.key, 'is caused by']);
+      }
+    }
+
+    // Check "relates to" - bidirectional, check both directions
+    if (linkTypeName.includes('relates') || inwardText.includes('relates')) {
+      if (linkTypes.some(lt => lt.toLowerCase().includes('relates'))) {
+        if (link.inwardIssue?.key) {
+          links.push([link.inwardIssue.key, 'relates to']);
+        }
+        if (link.outwardIssue?.key) {
+          links.push([link.outwardIssue.key, 'relates to']);
+        }
+      }
+    }
+  }
+
+  return links;
+}
+
+/**
+ * Get top tickets ranked by number of linked bugs.
+ */
+export async function getTopTicketsWithBugs(
+  boardId: number,
+  days: number,
+  limit: number
+): Promise<TopTicketsWithBugsResponse> {
+  // Step 1: Get project key for the board
+  const projectKey = await getBoardProjectKey(boardId);
+  if (!projectKey) {
+    throw new Error(`Could not find project for board ${boardId}`);
+  }
+
+  // Step 2: Define link types to process
+  const linkTypes = ['is caused by', 'relates to'];
+
+  // Step 3: Fetch bugs created within time range
+  const bugs = await fetchBugsCreatedWithLinks(projectKey, days);
+
+  console.log(`[getTopTicketsWithBugs] Found ${bugs.length} bugs created in last ${days} days`);
+
+  // Step 4: Group bugs by linked parent ticket
+  const ticketBugsMap = new Map<string, LinkedBug[]>();
+
+  for (const bug of bugs) {
+    const linkedTickets = extractLinkedTickets(bug, linkTypes);
+
+    for (const [ticketKey, linkType] of linkedTickets) {
+      if (!ticketBugsMap.has(ticketKey)) {
+        ticketBugsMap.set(ticketKey, []);
+      }
+
+      const existingBugs = ticketBugsMap.get(ticketKey)!;
+      // Deduplicate: only add if not already linked
+      if (!existingBugs.some(b => b.key === bug.key)) {
+        existingBugs.push({
+          key: bug.key,
+          summary: (bug.fields.summary as string) || '',
+          link_type: linkType,
+        });
+      }
+    }
+  }
+
+  console.log(`[getTopTicketsWithBugs] Found ${ticketBugsMap.size} unique parent tickets`);
+
+  // Step 5: Fetch parent ticket details
+  const parentKeys = Array.from(ticketBugsMap.keys());
+  const parentTickets = await fetchTicketsByKeys(parentKeys);
+
+  // Step 6: Build ranked list
+  const rankedItems: TopTicketItem[] = [];
+
+  for (const ticket of parentTickets) {
+    const key = ticket.key;
+    const linkedBugs = ticketBugsMap.get(key);
+
+    if (linkedBugs && linkedBugs.length > 0) {
+      const issueType = ticket.fields.issuetype as { name: string } | undefined;
+      rankedItems.push({
+        key,
+        summary: (ticket.fields.summary as string) || '',
+        issue_type: issueType?.name || 'Unknown',
+        bug_count: linkedBugs.length,
+        bugs: linkedBugs,
+      });
+    }
+  }
+
+  // Step 7: Sort by bug count (descending) and apply limit
+  rankedItems.sort((a, b) => b.bug_count - a.bug_count);
+
+  return {
+    tickets: rankedItems.slice(0, limit),
+    total_tickets_with_bugs: rankedItems.length,
+    time_range_days: days,
+    link_types_used: linkTypes,
   };
 }
