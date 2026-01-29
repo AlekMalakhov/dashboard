@@ -154,3 +154,32 @@ class DeveloperLeaderboardResponse(BaseModel):
     total_developers: int = Field(..., description="Total developers analyzed", ge=0)
     developers_excluded: int = Field(..., description="Developers excluded (< 3 stories)", ge=0)
     warning: Optional[str] = Field(None, description="Warning message if developers excluded")
+
+
+class LinkedBugDetail(BaseModel):
+    """Detail of a bug linked to a ticket."""
+
+    key: str = Field(..., description="Bug issue key")
+    summary: str = Field(..., description="Bug summary/title")
+    link_type: str = Field(..., description="Link type: 'is caused by' or 'relates to'")
+
+
+class TopTicketItem(BaseModel):
+    """A ticket with its linked bugs."""
+
+    key: str = Field(..., description="Ticket issue key")
+    summary: str = Field(..., description="Ticket summary/title")
+    issue_type: str = Field(..., description="Issue type (Story/Task)")
+    bug_count: int = Field(..., description="Number of linked bugs", ge=0)
+    bugs: list[LinkedBugDetail] = Field(default_factory=list, description="Linked bugs")
+
+
+class TopTicketsWithBugsResponse(BaseModel):
+    """Response for top tickets with linked bugs."""
+
+    tickets: list[TopTicketItem] = Field(default_factory=list)
+    total_tickets_with_bugs: int = Field(
+        ..., description="Total tickets with at least one bug", ge=0
+    )
+    time_range_days: int = Field(..., description="Time range used for filtering")
+    link_types_used: list[str] = Field(default_factory=list, description="Link types included")

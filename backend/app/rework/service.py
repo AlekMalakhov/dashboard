@@ -14,8 +14,11 @@ from app.rework.schemas import (
     DeveloperMetrics,
     IssueDetail,
     JiraSearchResponse,
+    LinkedBugDetail,
     ReworkMetricsResponse,
     ReworkTrendResponse,
+    TopTicketItem,
+    TopTicketsWithBugsResponse,
     WeeklyDataPoint,
 )
 
@@ -985,6 +988,213 @@ class ReworkService:
         )
 
         return response
+
+
+    def _extract_linked_tickets(self, bug: dict, link_types: list[str]) -> list[tuple[str, str]]:
+        """Extract linked ticket keys from a bug's issue links.
+
+        Args:
+            bug: Jira bug issue dict
+            link_types: Link type names to look for (e.g., ["Cause", "Relates"])
+
+        Returns:
+            Deduplicated list of (ticket_key, link_type) tuples
+        """
+        issue_links = bug.get("fields", {}).get("issuelinks", [])
+        results: dict[str, str] = {}  # key -> link_type for dedup
+
+        for link in issue_links:
+            link_type_info = link.get("type", {})
+            link_name = link_type_info.get("name", "")
+            inward_desc = link_type_info.get("inward", "")
+            outward_desc = link_type_info.get("outward", "")
+
+            # Check "is caused by" links: inwardIssue when inward contains "caused by"
+            if "caused by" in inward_desc.lower():
+                inward_issue = link.get("inwardIssue")
+                if inward_issue:
+                    key = inward_issue.get("key")
+                    if key and key not in results:
+                        results[key] = "is caused by"
+
+            # Check "relates to" links: both directions
+            if "relates" in link_name.lower():
+                for direction in ("inwardIssue", "outwardIssue"):
+                    linked_issue = link.get(direction)
+                    if linked_issue:
+                        key = linked_issue.get("key")
+                        if key and key not in results:
+                            results[key] = "relates to"
+
+        return list(results.items())
+
+    async def _fetch_tickets_by_keys(self, keys: list[str]) -> list[dict]:
+        """Batch fetch ticket details using JQL key IN (...).
+
+        Args:
+            keys: List of Jira issue keys to fetch
+
+        Returns:
+            List of issue dicts with key, summary, issuetype fields
+        """
+        if not keys:
+            return []
+
+        all_issues: list[dict] = []
+        # Chunk keys to avoid JQL length limits (roughly 100 keys per chunk)
+        chunk_size = 100
+        for i in range(0, len(keys), chunk_size):
+            chunk = keys[i : i + chunk_size]
+            keys_jql = ", ".join(chunk)
+            jql = f"key IN ({keys_jql})"
+
+            next_page_token: str | None = None
+            while True:
+                params: dict = {
+                    "jql": jql,
+                    "fields": "key,summary,issuetype",
+                    "maxResults": 100,
+                }
+                if next_page_token:
+                    params["nextPageToken"] = next_page_token
+
+                data = await self.jira.get("/rest/api/3/search/jql", params=params)
+                search_response = JiraSearchResponse(**data)
+                all_issues.extend([issue.model_dump() for issue in search_response.issues])
+
+                if search_response.isLast:
+                    break
+                next_page_token = search_response.nextPageToken
+
+        return all_issues
+
+    async def get_top_tickets_with_bugs(
+        self, board_id: int, days: int = 30, limit: int = 10
+    ) -> TopTicketsWithBugsResponse:
+        """Get top tickets with the most linked bugs.
+
+        Args:
+            board_id: Jira board ID
+            days: Number of days to look back
+            limit: Max tickets to return
+
+        Returns:
+            TopTicketsWithBugsResponse with ranked tickets
+        """
+        logger.info(f"Getting top tickets with bugs for board {board_id}, days {days}, limit {limit}")
+
+        # Step 1: Get project key from board
+        project_key = await self._get_board_project_key(board_id)
+        if not project_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Could not find project for board {board_id}",
+            )
+
+        # Step 2: Fetch bugs created within time range with issue links
+        jql = (
+            f'project = "{project_key}" '
+            f"AND type = Bug "
+            f'AND created >= "-{days}d"'
+        )
+
+        all_bugs: list[dict] = []
+        next_page_token: str | None = None
+
+        while True:
+            params: dict = {
+                "jql": jql,
+                "fields": "key,summary,issuelinks,issuetype",
+                "maxResults": 100,
+            }
+            if next_page_token:
+                params["nextPageToken"] = next_page_token
+
+            data = await self.jira.get("/rest/api/3/search/jql", params=params)
+            search_response = JiraSearchResponse(**data)
+            all_bugs.extend([issue.model_dump() for issue in search_response.issues])
+
+            logger.info(
+                f"Fetched {len(search_response.issues)} bugs "
+                f"(accumulated: {len(all_bugs)}, isLast: {search_response.isLast})"
+            )
+
+            if search_response.isLast:
+                break
+            next_page_token = search_response.nextPageToken
+
+        logger.info(f"Total bugs fetched: {len(all_bugs)}")
+
+        # Step 3: Group bugs by linked parent ticket
+        # ticket_key -> {bug_keys: set, bugs: list of (bug_key, bug_summary, link_type)}
+        ticket_bugs: dict[str, dict] = {}
+        link_types_seen: set[str] = set()
+
+        for bug in all_bugs:
+            bug_key = bug["key"]
+            bug_summary = bug.get("fields", {}).get("summary", "")
+            linked_tickets = self._extract_linked_tickets(bug, ["Cause", "Relates"])
+
+            for ticket_key, link_type in linked_tickets:
+                link_types_seen.add(link_type)
+                if ticket_key not in ticket_bugs:
+                    ticket_bugs[ticket_key] = {"bug_keys": set(), "bugs": []}
+
+                # Deduplicate: each bug counted only once per ticket
+                if bug_key not in ticket_bugs[ticket_key]["bug_keys"]:
+                    ticket_bugs[ticket_key]["bug_keys"].add(bug_key)
+                    ticket_bugs[ticket_key]["bugs"].append(
+                        (bug_key, bug_summary, link_type)
+                    )
+
+        # Step 4: Fetch parent ticket details
+        parent_keys = list(ticket_bugs.keys())
+        parent_tickets = await self._fetch_tickets_by_keys(parent_keys)
+
+        # Build a lookup map
+        parent_info: dict[str, dict] = {}
+        for ticket in parent_tickets:
+            key = ticket["key"]
+            fields = ticket.get("fields", {})
+            parent_info[key] = {
+                "summary": fields.get("summary", ""),
+                "issue_type": fields.get("issuetype", {}).get("name", "Unknown")
+                if fields.get("issuetype")
+                else "Unknown",
+            }
+
+        # Step 5: Build ranked list sorted by bug_count descending
+        ranked_items: list[TopTicketItem] = []
+        for ticket_key, bug_data in ticket_bugs.items():
+            info = parent_info.get(ticket_key, {"summary": ticket_key, "issue_type": "Unknown"})
+            bug_details = [
+                LinkedBugDetail(key=bk, summary=bs, link_type=lt)
+                for bk, bs, lt in bug_data["bugs"]
+            ]
+            ranked_items.append(
+                TopTicketItem(
+                    key=ticket_key,
+                    summary=info["summary"],
+                    issue_type=info["issue_type"],
+                    bug_count=len(bug_data["bugs"]),
+                    bugs=bug_details,
+                )
+            )
+
+        ranked_items.sort(key=lambda t: t.bug_count, reverse=True)
+        total_tickets_with_bugs = len(ranked_items)
+        ranked_items = ranked_items[:limit]
+
+        logger.info(
+            f"Top tickets with bugs: {total_tickets_with_bugs} total, returning {len(ranked_items)}"
+        )
+
+        return TopTicketsWithBugsResponse(
+            tickets=ranked_items,
+            total_tickets_with_bugs=total_tickets_with_bugs,
+            time_range_days=days,
+            link_types_used=sorted(link_types_seen),
+        )
 
 
 def get_rework_service() -> ReworkService:

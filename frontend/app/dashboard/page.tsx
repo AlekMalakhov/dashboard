@@ -16,6 +16,7 @@ import MissingDataWarning from '@/components/missing-data-warning';
 import IssuesModal from '@/components/issues-modal';
 import ThemeToggle from '@/components/theme-toggle';
 import DeveloperLeaderboardTable from '@/components/developer-leaderboard-table';
+import TopTicketsWithBugsTable from '@/components/top-tickets-with-bugs-table';
 
 type ModalType = 'stories' | 'bugs' | 'delivered' | 'rework' | 'excluded' | null;
 
@@ -235,6 +236,12 @@ export default function Dashboard() {
 
             {/* Developer Rework Leaderboard */}
             <DeveloperLeaderboardTable
+              boardId={selectedBoard.id}
+              timeRange={timeRange}
+            />
+
+            {/* Top Tickets with Linked Bugs */}
+            <TopTicketsWithBugsTable
               boardId={selectedBoard.id}
               timeRange={timeRange}
             />

@@ -224,3 +224,64 @@ export async function getDeveloperLeaderboard(
 
   return response.json();
 }
+
+/**
+ * Bug linked to a ticket
+ */
+export interface LinkedBug {
+  key: string;
+  summary: string;
+  link_type: string;
+}
+
+/**
+ * A ticket with linked bugs
+ */
+export interface TopTicketItem {
+  key: string;
+  summary: string;
+  issue_type: string;
+  bug_count: number;
+  bugs: LinkedBug[];
+}
+
+/**
+ * Top tickets with bugs response from backend
+ */
+export interface TopTicketsWithBugsResponse {
+  tickets: TopTicketItem[];
+  total_tickets_with_bugs: number;
+  time_range_days: number;
+  link_types_used: string[];
+}
+
+/**
+ * Fetches top tickets with linked bugs for a specific board and time range
+ *
+ * @param boardId - The ID of the board to fetch tickets for
+ * @param days - The time range in days (7-180)
+ * @param limit - Maximum number of tickets to return
+ * @returns Promise<TopTicketsWithBugsResponse> The top tickets with bugs data
+ * @throws Error if the request fails
+ */
+export async function getTopTicketsWithBugs(
+  boardId: number,
+  days: number,
+  limit: number
+): Promise<TopTicketsWithBugsResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/rework/top-tickets-with-bugs?board_id=${boardId}&days=${days}&limit=${limit}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch top tickets: ${response.statusText}`);
+  }
+
+  return response.json();
+}

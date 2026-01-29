@@ -1,0 +1,444 @@
+{
+  "testPlan": {
+    "slice": "All Slices (1-6): Top Tickets with Linked Bugs",
+    "specDirectory": "context/spec/005-top-tickets-with-linked-bugs",
+    "objectives": "Verify the Top Tickets with Bugs feature displays stories/tasks ranked by bug count with drill-down capability",
+    "environment": {
+      "requiredTools": ["browser", "api-client"],
+      "endpoints": {
+        "app": "http://localhost:3000",
+        "api": "http://localhost:8000"
+      }
+    }
+  },
+  "testCases": [
+    {
+      "id": "TC-001",
+      "title": "API endpoint returns valid response structure",
+      "slice": "Slice 1",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "critical",
+      "requirement": "AC-2.1: API Contract",
+      "setup": [
+        {"action": "Ensure backend server is running on port 8000", "expect": "Server responds to health check", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1&days=30&limit=10", "expect": "200 OK response", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "Response has 'tickets' array", "tool": "api-client"},
+        {"check": "Response has 'total_tickets_with_bugs' integer", "tool": "api-client"},
+        {"check": "Response has 'time_range_days' integer", "tool": "api-client"},
+        {"check": "Response has 'link_types_used' array", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-002",
+      "title": "API validates board_id parameter",
+      "slice": "Slice 1",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "high",
+      "requirement": "AC-2.1: API Contract",
+      "setup": [
+        {"action": "Ensure backend server is running", "expect": "Server responds", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs (no board_id)", "expect": "422 or 400 error", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "Response status is 4xx error", "tool": "api-client"},
+        {"check": "Error message mentions board_id", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-003",
+      "title": "API defaults limit to 10 when not specified",
+      "slice": "Slice 1",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "medium",
+      "requirement": "AC-2.2: List Size Configuration",
+      "setup": [
+        {"action": "Ensure backend server is running", "expect": "Server responds", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1&days=30 (no limit)", "expect": "200 OK response", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "Response tickets array has at most 10 items", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-004",
+      "title": "API normalizes invalid limit to 10",
+      "slice": "Slice 1",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "medium",
+      "requirement": "AC-2.2: List Size Configuration",
+      "setup": [
+        {"action": "Ensure backend server is running", "expect": "Server responds", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1&limit=15 (invalid limit)", "expect": "200 OK response", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "Response tickets array has at most 10 items (normalized)", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-005",
+      "title": "Dashboard displays Top Tickets with Bugs section",
+      "slice": "Slice 2",
+      "status": "passed",
+      "executedAt": "2026-01-28T18:00:00.000Z",
+      "priority": "critical",
+      "requirement": "AC-2.1: Top Tickets List Display",
+      "setup": [
+        {"action": "Navigate to dashboard page", "expect": "Dashboard loads", "tool": "browser"},
+        {"action": "Ensure a board is selected", "expect": "Board context is active", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Look for 'Top Tickets with Bugs' section", "expect": "Section is visible", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Section title 'Top Tickets with Bugs' is visible", "tool": "browser"},
+        {"check": "Table with tickets is displayed", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-006",
+      "title": "Table displays ticket key, summary, and bug count",
+      "slice": "Slice 2",
+      "status": "passed",
+      "executedAt": "2026-01-28T18:00:00.000Z",
+      "priority": "critical",
+      "requirement": "AC-2.1: Each row displays Ticket Key, Title/Summary, Bug Count",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Inspect table columns", "expect": "Columns are visible", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Column header for Key/Ticket exists", "tool": "browser"},
+        {"check": "Column header for Summary/Title exists", "tool": "browser"},
+        {"check": "Column header for Bug Count exists", "tool": "browser"},
+        {"check": "At least one row shows ticket key format (e.g., PROJ-123)", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-007",
+      "title": "Tickets are ranked by bug count (highest first)",
+      "slice": "Slice 3",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "critical",
+      "requirement": "AC-2.1: List shows tickets ranked by number of linked bugs (highest first)",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible with data", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Read bug counts from all visible rows", "saveAs": "bugCounts", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Bug counts are in descending order (first row >= second row, etc.)", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-008",
+      "title": "API processes 'is caused by' link type",
+      "slice": "Slice 3",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "critical",
+      "requirement": "AC-2.3: Bugs linked via 'is caused by' relationship are counted",
+      "setup": [
+        {"action": "Ensure test data exists with bugs linked via 'is caused by'", "expect": "Test data available", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1", "expect": "200 OK", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "link_types_used includes 'is caused by'", "tool": "api-client"},
+        {"check": "At least one ticket has bugs with link_type='is caused by'", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-009",
+      "title": "API processes 'relates to' link type",
+      "slice": "Slice 3",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "critical",
+      "requirement": "AC-2.3: Bugs linked via 'relates to' relationship are counted",
+      "setup": [
+        {"action": "Ensure test data exists with bugs linked via 'relates to'", "expect": "Test data available", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1", "expect": "200 OK", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "link_types_used includes 'relates to'", "tool": "api-client"},
+        {"check": "At least one ticket has bugs with link_type='relates to'", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-010",
+      "title": "Bugs linked via multiple types are not double-counted",
+      "slice": "Slice 3",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "high",
+      "requirement": "AC-2.3: Each unique bug is counted only once per ticket",
+      "setup": [
+        {"action": "Ensure test data has a bug linked to same ticket via both link types", "expect": "Test data available", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1", "expect": "200 OK", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "Each bug key appears only once in the ticket's bugs array", "tool": "api-client"},
+        {"check": "bug_count matches length of bugs array (no hidden duplicates)", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-011",
+      "title": "Limit selector shows options 10, 20, 50",
+      "slice": "Slice 4",
+      "status": "passed",
+      "executedAt": "2026-01-28T21:00:00.000Z",
+      "priority": "high",
+      "requirement": "AC-2.2: A dropdown/selector allows choosing between 10, 20, or 50 items",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Look for limit selector (button group or dropdown)", "expect": "Selector found", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Option for 10 is visible", "tool": "browser"},
+        {"check": "Option for 20 is visible", "tool": "browser"},
+        {"check": "Option for 50 is visible", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-012",
+      "title": "Default limit selection is 10",
+      "slice": "Slice 4",
+      "status": "passed",
+      "executedAt": "2026-01-28T21:00:00.000Z",
+      "priority": "medium",
+      "requirement": "AC-2.2: Default selection is 10 items",
+      "setup": [
+        {"action": "Navigate to dashboard (fresh page load)", "expect": "Dashboard loads", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Check which limit option is selected/active", "expect": "10 is selected", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Option 10 has active/selected state", "tool": "browser"},
+        {"check": "Table shows at most 10 rows", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-013",
+      "title": "Changing limit immediately updates the list",
+      "slice": "Slice 4",
+      "status": "passed",
+      "executedAt": "2026-01-28T21:00:00.000Z",
+      "priority": "high",
+      "requirement": "AC-2.2: Changing the selection immediately updates the displayed list",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible", "tool": "browser"},
+        {"action": "Verify default limit is 10", "expect": "10 is selected", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Click on limit option 20", "expect": "Selection changes", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Option 20 is now active/selected", "tool": "browser"},
+        {"check": "Table updates to show up to 20 rows", "tool": "browser"},
+        {"check": "No page refresh occurred (SPA behavior)", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-014",
+      "title": "List respects 30-day time range filter",
+      "slice": "Slice 5",
+      "status": "passed",
+      "executedAt": "2026-01-28T22:00:00.000Z",
+      "priority": "high",
+      "requirement": "AC-2.4: Time filter applies to bug creation date",
+      "setup": [
+        {"action": "Navigate to dashboard", "expect": "Dashboard loads", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Select 30-day time range from dashboard selector", "expect": "Selection applied", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Top Tickets section updates/reloads", "tool": "browser"},
+        {"check": "API call includes days=30 parameter", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-015",
+      "title": "List respects 90-day time range filter",
+      "slice": "Slice 5",
+      "status": "passed",
+      "executedAt": "2026-01-28T22:00:00.000Z",
+      "priority": "high",
+      "requirement": "AC-2.4: Time filter applies to bug creation date",
+      "setup": [
+        {"action": "Navigate to dashboard", "expect": "Dashboard loads", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Select 90-day time range from dashboard selector", "expect": "Selection applied", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Top Tickets section updates/reloads", "tool": "browser"},
+        {"check": "API call includes days=90 parameter", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-016",
+      "title": "Changing time range updates list automatically",
+      "slice": "Slice 5",
+      "status": "passed",
+      "executedAt": "2026-01-28T22:00:00.000Z",
+      "priority": "high",
+      "requirement": "AC-2.4: Changing the time range updates the list automatically",
+      "setup": [
+        {"action": "Navigate to dashboard with 30-day range selected", "expect": "30-day active", "tool": "browser"},
+        {"action": "Note current ticket data", "saveAs": "initialData", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Change time range to 60 days", "expect": "Selection changes", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Table content refreshes without page reload", "tool": "browser"},
+        {"check": "New data reflects 60-day window", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-017",
+      "title": "Clicking ticket row expands to show linked bugs",
+      "slice": "Slice 6",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "critical",
+      "requirement": "AC-2.5: Clicking on a ticket row expands to show the list of linked bugs",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible with data", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Click on the first ticket row", "expect": "Row expands", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Expanded content is visible below the clicked row", "tool": "browser"},
+        {"check": "Expanded content shows bug keys", "tool": "browser"},
+        {"check": "Expanded content shows bug summaries", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-018",
+      "title": "Expanded row shows bug key and summary",
+      "slice": "Slice 6",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "high",
+      "requirement": "AC-2.5: Each bug shows Bug Key, Bug Title/Summary",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible", "tool": "browser"},
+        {"action": "Click on a ticket row to expand", "expect": "Row expanded", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Inspect the expanded bug list", "expect": "Bug details visible", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Each bug has a key displayed (format: PROJ-XXX)", "tool": "browser"},
+        {"check": "Each bug has a summary/title displayed", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-019",
+      "title": "Clicking expanded row again collapses it",
+      "slice": "Slice 6",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "high",
+      "requirement": "AC-2.5: The expanded view can be collapsed by clicking the row again",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible", "tool": "browser"},
+        {"action": "Click on a ticket row to expand it", "expect": "Row is expanded", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Click on the same ticket row again", "expect": "Row collapses", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "Expanded content is no longer visible", "tool": "browser"},
+        {"check": "Row returns to collapsed state", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-020",
+      "title": "Only one ticket row can be expanded at a time",
+      "slice": "Slice 6",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "high",
+      "requirement": "AC-2.5: Only one ticket can be expanded at a time",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section showing multiple tickets", "expect": "At least 2 rows visible", "tool": "browser"},
+        {"action": "Click on first ticket row to expand it", "expect": "First row is expanded", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Click on second ticket row", "expect": "Second row expands", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "First row is now collapsed", "tool": "browser"},
+        {"check": "Second row is expanded", "tool": "browser"},
+        {"check": "Only one expanded section is visible at a time", "tool": "browser"}
+      ]
+    },
+    {
+      "id": "TC-021",
+      "title": "Tickets with zero bugs are not displayed",
+      "slice": "Slice 3",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "medium",
+      "requirement": "AC-2.1: Tickets with zero linked bugs are NOT displayed",
+      "setup": [
+        {"action": "Navigate to dashboard with Top Tickets section", "expect": "Section visible", "tool": "browser"}
+      ],
+      "action": [
+        {"action": "Inspect all ticket rows for bug count", "expect": "All rows have bug count", "tool": "browser"}
+      ],
+      "assert": [
+        {"check": "No row shows bug count of 0", "tool": "browser"},
+        {"check": "All visible tickets have bug_count >= 1", "tool": "api-client"}
+      ]
+    },
+    {
+      "id": "TC-022",
+      "title": "Only Bug issue types are counted",
+      "slice": "Slice 3",
+      "status": "failed",
+      "executedAt": null,
+      "priority": "medium",
+      "requirement": "AC-2.3: Only issues of type 'Bug' are counted as bugs",
+      "setup": [
+        {"action": "GET /api/rework/top-tickets-with-bugs?board_id=1", "expect": "200 OK", "tool": "api-client"}
+      ],
+      "action": [
+        {"action": "Inspect bugs arrays in response", "expect": "Data available", "tool": "api-client"}
+      ],
+      "assert": [
+        {"check": "All items in bugs arrays are actually Bug issue types (verify via Jira if needed)", "tool": "api-client"}
+      ]
+    }
+  ]
+}

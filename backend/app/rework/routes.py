@@ -5,7 +5,12 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 from loguru import logger
 
-from app.rework.schemas import DeveloperLeaderboardResponse, ReworkMetricsResponse, ReworkTrendResponse
+from app.rework.schemas import (
+    DeveloperLeaderboardResponse,
+    ReworkMetricsResponse,
+    ReworkTrendResponse,
+    TopTicketsWithBugsResponse,
+)
 from app.rework.service import ReworkService
 
 router = APIRouter()
@@ -107,3 +112,34 @@ async def get_developer_rework_leaderboard(
     )
 
     return leaderboard
+
+
+@router.get("/rework/top-tickets-with-bugs", response_model=TopTicketsWithBugsResponse)
+async def get_top_tickets_with_bugs(
+    board_id: Annotated[int, Query(description="Jira board ID", gt=0)],
+    days: Annotated[int, Query(description="Time range in days (7-180)", ge=7, le=180)] = 30,
+    limit: Annotated[int, Query(description="Number of tickets to return (10, 20, or 50)")] = 10,
+) -> TopTicketsWithBugsResponse:
+    """
+    Get top tickets with the most linked bugs.
+
+    Returns tickets (Stories/Tasks) that have bugs linked to them,
+    sorted by bug count descending. This helps identify which work items
+    generated the most rework.
+
+    Args:
+        board_id: Jira board ID to analyze
+        days: Number of days to look back (7-180)
+        limit: Number of tickets to return (10, 20, or 50)
+
+    Returns:
+        TopTicketsWithBugsResponse: Top tickets with their linked bugs
+    """
+    # Normalize limit to valid values
+    if limit not in [10, 20, 50]:
+        limit = 10
+
+    logger.info(f"Getting top tickets with bugs for board {board_id}, days {days}, limit {limit}")
+
+    rework_service = ReworkService()
+    return await rework_service.get_top_tickets_with_bugs(board_id=board_id, days=days, limit=limit)
