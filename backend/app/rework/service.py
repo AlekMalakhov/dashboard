@@ -537,10 +537,11 @@ class ReworkService:
 
         items_excluded = bugs_without_points + stories_without_points
 
-        # Calculate ratio (rounded to 1 decimal place)
+        # Calculate ratio: bug points as percentage of total effort
         rework_ratio = 0.0
-        if story_points_delivered > 0:
-            rework_ratio = round((rework_points / story_points_delivered) * 100, 1)
+        total_effort = story_points_delivered + rework_points
+        if total_effort > 0:
+            rework_ratio = round((rework_points / total_effort) * 100, 1)
 
         # Warning message
         warning = None
@@ -722,10 +723,11 @@ class ReworkService:
             rework_points, bugs_count = bugs_by_week.get(week_start, (0.0, 0))
             delivered_points, stories_count = stories_by_week.get(week_start, (0.0, 0))
 
-            # Calculate rework ratio
+            # Calculate rework ratio: bug points as percentage of total effort
             rework_ratio = 0.0
-            if delivered_points > 0:
-                rework_ratio = (rework_points / delivered_points) * 100
+            total_effort = delivered_points + rework_points
+            if total_effort > 0:
+                rework_ratio = (rework_points / total_effort) * 100
 
             weekly_data.append(
                 WeeklyDataPoint(
@@ -868,6 +870,7 @@ class ReworkService:
 
         # Step 6: Process bugs and attribute to parent story's assignee
         bugs_skipped = 0
+        unattributed_bug_points = 0.0
         for bug in bugs:
             bug_key = bug["key"]
             bug_summary = bug.get("fields", {}).get("summary", "")
@@ -896,6 +899,8 @@ class ReworkService:
             # If no parent story link found, skip this bug
             if not parent_story_key:
                 bugs_skipped += 1
+                if bug_points is not None and bug_points > 0:
+                    unattributed_bug_points += bug_points
                 logger.debug(f"Bug {bug_key} has no 'is caused by' link, skipping")
                 continue
 
@@ -903,6 +908,8 @@ class ReworkService:
             parent_assignee = story_assignee_map.get(parent_story_key)
             if not parent_assignee:
                 bugs_skipped += 1
+                if bug_points is not None and bug_points > 0:
+                    unattributed_bug_points += bug_points
                 logger.debug(
                     f"Bug {bug_key} parent story {parent_story_key} not found or has no assignee, skipping"
                 )
@@ -911,6 +918,8 @@ class ReworkService:
             parent_account_id = parent_assignee.get("accountId")
             if not parent_account_id or parent_account_id not in developer_data:
                 bugs_skipped += 1
+                if bug_points is not None and bug_points > 0:
+                    unattributed_bug_points += bug_points
                 logger.debug(
                     f"Bug {bug_key} parent story {parent_story_key} assignee not in developer list, skipping"
                 )
@@ -932,8 +941,8 @@ class ReworkService:
 
         logger.info(f"Attributed {len(bugs) - bugs_skipped} bugs, skipped {bugs_skipped} bugs")
 
-        # Step 7: Calculate metrics and filter by minimum threshold
-        min_stories_threshold = 3
+        # Step 7: Calculate metrics (no minimum threshold)
+        min_stories_threshold = 1
         developers: list[DeveloperMetrics] = []
         developers_excluded = 0
 
@@ -945,12 +954,13 @@ class ReworkService:
                 developers_excluded += 1
                 continue
 
-            # Calculate rework ratio
+            # Calculate rework ratio: bug points as percentage of total effort
             story_points_delivered = dev_data["story_points_total"]
             bug_points = dev_data["bug_points_total"]
             rework_ratio = 0.0
-            if story_points_delivered > 0:
-                rework_ratio = (bug_points / story_points_delivered) * 100
+            total_effort = story_points_delivered + bug_points
+            if total_effort > 0:
+                rework_ratio = (bug_points / total_effort) * 100
 
             developers.append(
                 DeveloperMetrics(
@@ -980,6 +990,8 @@ class ReworkService:
             total_developers=len(developers),
             developers_excluded=developers_excluded,
             warning=warning,
+            unattributed_bugs_count=bugs_skipped,
+            unattributed_bug_points=unattributed_bug_points,
         )
 
         logger.info(

@@ -152,8 +152,10 @@ class DeveloperLeaderboardResponse(BaseModel):
         description="List of developers with their metrics",
     )
     total_developers: int = Field(..., description="Total developers analyzed", ge=0)
-    developers_excluded: int = Field(..., description="Developers excluded (< 3 stories)", ge=0)
+    developers_excluded: int = Field(..., description="Developers excluded (below minimum stories)", ge=0)
     warning: Optional[str] = Field(None, description="Warning message if developers excluded")
+    unattributed_bugs_count: int = Field(0, description="Bugs not linked to any developer's stories", ge=0)
+    unattributed_bug_points: float = Field(0.0, description="Story points from unattributed bugs", ge=0)
 
 
 class LinkedBugDetail(BaseModel):

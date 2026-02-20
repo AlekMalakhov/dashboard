@@ -291,10 +291,11 @@ export async function getReworkMetrics(
 
   const itemsExcluded = bugsWithoutPoints + storiesWithoutPoints;
 
-  // Calculate ratio
+  // Calculate ratio: bug points as percentage of total effort
   let reworkRatio = 0;
-  if (storyPointsDelivered > 0) {
-    reworkRatio = Math.round((reworkPoints / storyPointsDelivered) * 1000) / 10;
+  const totalEffort = storyPointsDelivered + reworkPoints;
+  if (totalEffort > 0) {
+    reworkRatio = Math.round((reworkPoints / totalEffort) * 1000) / 10;
   }
 
   // Warning message
@@ -433,9 +434,10 @@ export async function getReworkTrend(
     const storyData = storiesByWeek.get(weekStart) || { points: 0, count: 0 };
 
     let reworkRatio = 0;
-    if (storyData.points > 0) {
+    const totalEffort = storyData.points + bugData.points;
+    if (totalEffort > 0) {
       reworkRatio =
-        Math.round((bugData.points / storyData.points) * 1000) / 10;
+        Math.round((bugData.points / totalEffort) * 1000) / 10;
     }
 
     weeklyData.push({
@@ -531,6 +533,8 @@ export interface DeveloperLeaderboardResponse {
   total_developers: number;
   developers_excluded: number;
   warning: string | null;
+  unattributed_bugs_count: number;
+  unattributed_bug_points: number;
 }
 
 interface JiraAssignee {
@@ -725,11 +729,21 @@ export async function getDeveloperLeaderboard(
   let bugsAttributed = 0;
   let bugsSkippedNoLink = 0;
   let bugsSkippedNoParent = 0;
+  let unattributedBugPoints = 0;
+
+  const getBugPoints = (bug: JiraIssue): number => {
+    if (storyPointsFieldId) {
+      const v = bug.fields[storyPointsFieldId];
+      if (typeof v === 'number') return v;
+    }
+    return 0;
+  };
 
   for (const bug of bugs) {
     const issueLinks = bug.fields.issuelinks as JiraIssueLink[] | undefined;
     if (!issueLinks || issueLinks.length === 0) {
       bugsSkippedNoLink++;
+      unattributedBugPoints += getBugPoints(bug);
       continue;
     }
 
@@ -745,6 +759,7 @@ export async function getDeveloperLeaderboard(
 
     if (!parentStoryKey) {
       bugsSkippedNoLink++;
+      unattributedBugPoints += getBugPoints(bug);
       console.log(`[getDeveloperLeaderboard] Bug ${bug.key} has no "is caused by" link. Links:`,
         issueLinks.map(l => ({ type: l.type?.inward, inward: l.inwardIssue?.key, outward: l.outwardIssue?.key })));
       continue;
@@ -754,13 +769,17 @@ export async function getDeveloperLeaderboard(
     const parentAssigneeId = storyAssigneeMap.get(parentStoryKey);
     if (!parentAssigneeId) {
       bugsSkippedNoParent++;
+      unattributedBugPoints += getBugPoints(bug);
       console.log(`[getDeveloperLeaderboard] Bug ${bug.key} parent ${parentStoryKey} not found in stories (maybe outside time range or unassigned)`);
       continue;
     }
 
     // Only attribute if we have this developer in our data
     const dev = developerData.get(parentAssigneeId);
-    if (!dev) continue;
+    if (!dev) {
+      unattributedBugPoints += getBugPoints(bug);
+      continue;
+    }
 
     let bugPoints = 0;
     if (storyPointsFieldId) {
@@ -793,8 +812,9 @@ export async function getDeveloperLeaderboard(
       continue;
     }
 
-    const reworkRatio = data.storyPoints > 0
-      ? Math.round((data.bugPoints / data.storyPoints) * 1000) / 10
+    const totalEffort = data.storyPoints + data.bugPoints;
+    const reworkRatio = totalEffort > 0
+      ? Math.round((data.bugPoints / totalEffort) * 1000) / 10
       : 0;
 
     developers.push({
@@ -814,11 +834,15 @@ export async function getDeveloperLeaderboard(
   // Sort by rework ratio descending
   developers.sort((a, b) => b.rework_ratio - a.rework_ratio);
 
+  const unattributedBugsCount = bugsSkippedNoLink + bugsSkippedNoParent;
+
   return {
     developers,
     total_developers: developers.length,
     developers_excluded: 0,
     warning: null,
+    unattributed_bugs_count: unattributedBugsCount,
+    unattributed_bug_points: unattributedBugPoints,
   };
 }
 

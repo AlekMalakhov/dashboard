@@ -24,6 +24,7 @@ function getRatioTheme(ratio: number) {
       lightBg: 'bg-emerald-400/50 dark:bg-emerald-500/30',
       textMuted: 'text-emerald-100',
       label: 'Excellent',
+      tooltip: '0-10%: Very low defect rate',
       markerColor: 'bg-emerald-400 border-emerald-600',
     };
   }
@@ -33,6 +34,7 @@ function getRatioTheme(ratio: number) {
       lightBg: 'bg-blue-400/50 dark:bg-blue-500/30',
       textMuted: 'text-blue-100',
       label: 'Good',
+      tooltip: '11-25%: Healthy defect rate',
       markerColor: 'bg-blue-400 border-blue-600',
     };
   }
@@ -42,6 +44,7 @@ function getRatioTheme(ratio: number) {
       lightBg: 'bg-amber-400/50 dark:bg-amber-500/30',
       textMuted: 'text-amber-100',
       label: 'Moderate',
+      tooltip: '26-40%: Room for improvement',
       markerColor: 'bg-amber-400 border-amber-600',
     };
   }
@@ -50,6 +53,7 @@ function getRatioTheme(ratio: number) {
     lightBg: 'bg-red-400/50 dark:bg-red-500/30',
     textMuted: 'text-red-100',
     label: 'Needs Attention',
+    tooltip: '40%+: High defect rate, review quality practices',
     markerColor: 'bg-red-400 border-red-600',
   };
 }
@@ -144,8 +148,8 @@ export default function ReworkRatioCard({
             {showHint && (
               <div className="absolute z-10 left-1/2 -translate-x-1/2 top-full mt-2 w-72 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-xl animate-fade-in">
                 <p className="font-semibold mb-1">Defect Rate Formula:</p>
-                <p className="text-gray-300">(Rework ÷ Delivered) × 100%</p>
-                <p className="text-gray-300 mt-2">Lower is better. Shows the percentage of effort spent fixing bugs versus delivering new work.</p>
+                <p className="text-gray-300">(Bug Points ÷ Total Points) × 100%</p>
+                <p className="text-gray-300 mt-2">Lower is better. Shows what percentage of total effort was spent on bug fixes.</p>
                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-900" />
               </div>
             )}
@@ -153,7 +157,10 @@ export default function ReworkRatioCard({
         </div>
 
         {/* Status label */}
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${theme.lightBg} backdrop-blur-sm`}>
+        <span
+          className={`px-3 py-1 rounded-full text-sm font-medium ${theme.lightBg} backdrop-blur-sm cursor-help`}
+          title={theme.tooltip}
+        >
           {theme.label}
         </span>
 

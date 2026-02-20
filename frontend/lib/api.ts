@@ -194,6 +194,8 @@ export interface DeveloperLeaderboardResponse {
   total_developers: number;
   developers_excluded: number;
   warning: string | null;
+  unattributed_bugs_count: number;
+  unattributed_bug_points: number;
 }
 
 /**

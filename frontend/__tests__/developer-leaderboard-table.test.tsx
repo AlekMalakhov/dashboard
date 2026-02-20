@@ -102,6 +102,8 @@ describe('DeveloperLeaderboardTable', () => {
     total_developers: 4,
     developers_excluded: 0,
     warning: null,
+    unattributed_bugs_count: 0,
+    unattributed_bug_points: 0,
   };
 
   beforeEach(() => {

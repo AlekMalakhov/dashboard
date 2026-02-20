@@ -81,14 +81,18 @@ const LEADERBOARD_DATA_DEFAULT = {
   ],
   total_developers: 5,
   developers_excluded: 2,
-  warning: '2 developers hidden (fewer than 3 stories)',
+  warning: '2 developers hidden (fewer than 1 stories)' as string | null,
+  unattributed_bugs_count: 3,
+  unattributed_bug_points: 8,
 };
 
 const LEADERBOARD_DATA_EMPTY = {
-  developers: [],
+  developers: [] as typeof LEADERBOARD_DATA_DEFAULT.developers,
   total_developers: 0,
   developers_excluded: 0,
-  warning: null,
+  warning: null as string | null,
+  unattributed_bugs_count: 0,
+  unattributed_bug_points: 0,
 };
 
 // Helper to mock developer leaderboard API
@@ -211,7 +215,9 @@ test.describe('Developer Rework Leaderboard', () => {
         ],
         total_developers: 5,
         developers_excluded: 2,
-        warning: '2 developers hidden (fewer than 3 stories)',
+        warning: '2 developers hidden (fewer than 1 stories)',
+        unattributed_bugs_count: 3,
+        unattributed_bug_points: 8,
       };
 
       await mockBoardsApi(page);
@@ -334,7 +340,7 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForMetricsLoaded();
 
       // Verify empty state message
-      await expect(page.getByText(/no developers with 3\+ stories/i)).toBeVisible();
+      await expect(page.getByText(/no developers with completed stories/i)).toBeVisible();
     });
 
     test('displays excluded developers warning', async ({ page, dashboardPage }) => {
@@ -346,7 +352,7 @@ test.describe('Developer Rework Leaderboard', () => {
       await dashboardPage.waitForMetricsLoaded();
 
       // Verify warning about excluded developers
-      await expect(page.getByText(/2 developers hidden/i)).toBeVisible();
+      await expect(page.getByText(/2 developer.*hidden/i)).toBeVisible();
     });
   });
 
@@ -446,7 +452,9 @@ test.describe('Developer Rework Leaderboard', () => {
         ],
         total_developers: 3,
         developers_excluded: 0,
-        warning: null,
+        warning: null as string | null,
+        unattributed_bugs_count: 0,
+        unattributed_bug_points: 0,
       };
 
       await mockBoardsApi(page);

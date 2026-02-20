@@ -70,7 +70,7 @@ export default function ContextWidgetsGrid({
         value={storiesAnalyzed}
         isLoading={isLoading}
         onClick={onStoriesClick}
-        hint="Total Stories and Tasks completed in the selected time period. Click to see the full list."
+        hint="Total Stories and Tasks completed (excludes Bugs). Click to see the full list."
         accentColor="blue"
       />
       <ContextWidget
@@ -86,7 +86,7 @@ export default function ContextWidgetsGrid({
         value={deliveredPoints}
         isLoading={isLoading}
         onClick={onDeliveredPointsClick}
-        hint="Story Points from completed Stories and Tasks. This represents the team's productive output."
+        hint="Story Points from completed Stories and Tasks (excludes bug fix points). This represents the team's feature output."
         accentColor="green"
       />
       <ContextWidget
@@ -94,7 +94,7 @@ export default function ContextWidgetsGrid({
         value={reworkPoints}
         isLoading={isLoading}
         onClick={onReworkPointsClick}
-        hint="Story Points spent on bug fixes. Defect Rate = (Rework ÷ Delivered) × 100%."
+        hint="Story Points spent on bug fixes. Combined with Delivered, this equals total effort."
         accentColor="yellow"
       />
       <ContextWidget

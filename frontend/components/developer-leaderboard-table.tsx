@@ -98,7 +98,7 @@ function InfoTooltip() {
             </div>
           </div>
           <p className="text-gray-400 text-xs">
-            Only developers with 3+ stories in the selected period are shown.
+            Bugs are attributed via &quot;is caused by&quot; links to parent stories.
           </p>
           <div className="absolute left-4 bottom-full w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-gray-900" />
         </div>
@@ -319,7 +319,7 @@ export default function DeveloperLeaderboardTable({
             No developers found
           </h3>
           <p className="text-gray-600 dark:text-gray-400">
-            No developers with 3+ stories in this period
+            No developers with completed stories in this period
           </p>
         </div>
       )}
@@ -342,6 +342,28 @@ export default function DeveloperLeaderboardTable({
           </svg>
           <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
             {data.warning}
+          </p>
+        </div>
+      )}
+
+      {/* Unattributed Bugs Info */}
+      {!isLoading && !error && data && data.unattributed_bugs_count > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-start gap-3">
+          <svg
+            className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            {data.unattributed_bugs_count} {data.unattributed_bugs_count === 1 ? 'bug' : 'bugs'} ({data.unattributed_bug_points} points) not linked to developer stories and excluded from individual ratios.
           </p>
         </div>
       )}

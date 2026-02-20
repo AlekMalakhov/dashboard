@@ -121,8 +121,9 @@ function CustomTooltip(props: TooltipProps<number, string>) {
   }
 
   const data = payload[0].payload;
-  const defectRate = data.delivered_points > 0
-    ? Math.round((data.rework_points / data.delivered_points) * 1000) / 10
+  const totalEffort = data.delivered_points + data.rework_points;
+  const defectRate = totalEffort > 0
+    ? Math.round((data.rework_points / totalEffort) * 1000) / 10
     : 0;
 
   return (
@@ -194,7 +195,8 @@ function getTrendDirection(data: ChartDataPoint[]): { direction: 'improving' | '
   const calcAvgRate = (slice: ChartDataPoint[]) => {
     const totalDelivered = slice.reduce((acc, p) => acc + p.delivered_points, 0);
     const totalRework = slice.reduce((acc, p) => acc + p.rework_points, 0);
-    return totalDelivered > 0 ? (totalRework / totalDelivered) * 100 : 0;
+    const totalEffort = totalDelivered + totalRework;
+    return totalEffort > 0 ? (totalRework / totalEffort) * 100 : 0;
   };
 
   const recentRate = calcAvgRate(data.slice(-4));
